@@ -1,0 +1,374 @@
+pipeline {
+  agent { label 'SterlingDev' }
+        environment {              
+            ExecOrqShell = "$WORKSPACE/${PgmSh}/${ComplementShells}/${AntOrqShell}"
+            ExecPgmSh = "$WORKSPACE/${PgmSh}/${ComplementShells}/"
+            PwdImport = "${AntPwdImport}"
+            
+
+            //Define Variables Artifacts
+            Adapters = "ADAPTERS"               		//1
+            Obscuredata = "OBSCUREDATA"            		//2
+            Xslt = "XSLT"                   			//3
+            Certificates = "CERTIFICATES"           	//4
+            Business_Process = "BUSINESS_PROCESS"       //5
+            Templates = "TEMPLATES"              		//6
+            Schedules = "SCHEDULES"              		//7
+            Ssh_Profiles = "SSH_PROFILES"           	//8
+            Partners = "PARTNERS"               		//9
+            Groups = "GROUPS"                 			//10
+            Accounts_Permission = "ACCOUNTS_PERMISSION" //11
+            Code_Lists = "CODE_LISTS"             		//12
+            Routing_Channels = "ROUTING_CHANNELS"       //13
+			
+			//Zip Backup
+			FileBackup = sh (script: 'ls ${Filename_Artifact}*.tar', returnStdout: true).trim()
+            FileTarBackup = "$WORKSPACE/Backups/Backup_${FileBackup}"
+
+        }
+        stages {
+			stage('Unzip Programs'){
+                    steps {
+                        script 
+                            {
+							sh ('mkdir -p $WORKSPACE/Backups')
+                            env.FilenameTar = sh (script: 'ls $WORKSPACE/${FilenameShells}*', returnStdout: true).trim()
+							
+							def FolderArtifac = sh script: '[ -d "$WORKSPACE/${PgmSh}" ]', returnStatus: true
+                            if (FolderArtifac == 0) {
+                                    sh '/bin/tar -xvf $WORKSPACE/${PgmSh}/${FilenameTar}'
+                                }
+                                else {
+                                    sh 'mkdir -p $WORKSPACE/${PgmSh}/'
+                                    sh '/bin/tar -xvf ${FilenameTar} -C $WORKSPACE/${PgmSh}/'
+                                }
+								
+                        }
+                    }
+					post {
+						success {
+							echo "Unzip Sucessfully	${FilenameTar}"
+							}
+						failure {
+							sh 'rm -rf $WORKSPACE/Arti*'
+							sh 'rm -rf $WORKSPACE/Shel*'
+						}
+					}
+                }
+			stage('Unzip Artifacts Sterling'){
+                    steps {
+                        script {
+                            env.FileTar = sh (script: 'ls $WORKSPACE/${Filename_Artifact}*', returnStdout: true).trim()
+                            env.FileBuild = FileTar.substring(0,FileTar.indexOf('.'))
+                            env.ExecFileBuild = "${FileBuild}"
+                            
+                            def FolderArtifac = sh script: '[ -d "${FileBuild}" ]', returnStatus: true
+                            if (FolderArtifac == 0) {
+                                    sh '/bin/tar -xvf ${FileTar} -C ${FileBuild}/'
+                                }
+                                else {
+                                    sh 'mkdir -p ${FileBuild}/'
+                                    sh '/bin/tar -xvf ${FileTar} -C ${FileBuild}/'
+                                }
+                        }
+                    }
+					post {
+						success {
+							echo "Unzip Sucessfully	${FileTar}"
+							}
+						failure {
+							sh 'rm -rf $WORKSPACE/Arti*'
+							sh 'rm -rf $WORKSPACE/Shel*'
+						}
+					}
+                }
+			stage('Chmod Artifacts') {
+                steps {
+                    sh 'chmod -R 700 $WORKSPACE/'                  
+                    }
+                }
+			stage('Deploy Artifacts Comunes') {
+                parallel 
+				{
+                    stage('Deploy ADAPTERS') { //1
+                        steps {
+                            sh '${ExecOrqShell} "${ExecPgmSh}" "${ExecFileBuild}" "${Adapters}" "${PwdImport}"'
+                        }
+                        post {
+                            success {
+                                echo "Los artefactos ${Adapters} desplegados de forma exitosa"
+                                }
+                            failure {
+                               sh 'cat -b ${ExecFileBuild}/Errors/${Adapters}/*'
+                            }
+                        }
+                    }
+                    stage('Deploy OBSCUREDATA') { //2
+                        steps {
+                            sh '${ExecOrqShell} "${ExecPgmSh}" "${ExecFileBuild}" "${Obscuredata}" "${PwdImport}"'
+                        }
+                        post {
+                            success {
+                                echo "Los artefactos ${Obscuredata} desplegados de forma exitosa"
+                                }
+                            failure {
+                                sh 'cat -b ${ExecFileBuild}/Errors/${Obscuredata}/*'
+                            }
+                        }
+                    }
+                    stage('Deploy XSLT') { //3
+                        steps {
+                            sh '${ExecOrqShell} "${ExecPgmSh}" "${ExecFileBuild}" "${Xslt}" "${PwdImport}"'
+                        }
+                        post {
+                            success {
+                                echo "Los artefactos ${Xslt} desplegados de forma exitosa"
+                                }
+                            failure {
+                                sh 'cat -b ${ExecFileBuild}/Errors/${Xslt}/*'
+                            }
+                        }
+                    }
+                    stage('Deploy CERTIFICATES') { //4
+                        steps {
+                            sh '${ExecOrqShell} "${ExecPgmSh}" "${ExecFileBuild}" "${Certificates}" "${PwdImport}"'
+                        }
+                        post {
+                            success {
+                                echo "Los artefactos ${Certificates} desplegados de forma exitosa"
+                                }
+                            failure {
+                                sh 'cat -b ${ExecFileBuild}/Errors/${Certificates}/*'
+                            }
+                        }
+                    }
+                    stage('Deploy BUSINESS PROCESS') { //5
+                        steps {
+                            sh '${ExecOrqShell} "${ExecPgmSh}" "${ExecFileBuild}" "${Business_Process}" "${PwdImport}"'
+                        }
+                        post {
+                            success {
+                                echo "Los artefactos ${Business_Process} desplegados de forma exitosa"
+                                }
+                            failure {
+                                sh 'cat -b ${ExecFileBuild}/Errors/${Business_Process}/*'
+                                }
+                            }
+                        }
+				}
+			}
+			stage('Deploy TEMPLATES') { //6
+				steps {
+                            sh '${ExecOrqShell} "${ExecPgmSh}" "${ExecFileBuild}" "${Templates}" "${PwdImport}"'
+                        }
+                    post {
+                        success {
+                            echo "Los artefactos ${Templates} desplegados de forma exitosa"
+                            }
+                        failure {
+                            sh 'cat -b ${ExecFileBuild}/Errors/${Templates}/*'
+                        }
+                    }
+                }
+			stage('Deploy Artifacts Especificos') { //7
+				parallel 
+					{
+                        stage('Deploy SCHEDULES') {
+                            steps {
+                                    sh '${ExecOrqShell} "${ExecPgmSh}" "${ExecFileBuild}" "${Schedules}" "${PwdImport}"'
+                                }
+                            post {
+                                success {
+                                    echo "Los artefactos ${Schedules} desplegados de forma exitosa"
+                                    }
+                                failure {
+                                    sh 'cat -b ${ExecFileBuild}/Errors/${Schedules}/*'
+                                }
+                            }
+                        }
+                        stage('Deploy SSH PROFILES') { //8
+                            steps {
+                                    sh '${ExecOrqShell} "${ExecPgmSh}" "${ExecFileBuild}" "${Ssh_Profiles}" "${PwdImport}"'
+                                }
+                            post {
+                                success {
+                                    echo "Los artefactos ${Ssh_Profiles} desplegados de forma exitosa"
+                                    }
+                                failure {
+                                    sh 'cat -b ${ExecFileBuild}/Errors/${Ssh_Profiles}/*'
+                                }
+                            }
+                        }
+                        stage('Deploy PARTNERS') { //9
+                            steps {
+                                    sh '${ExecOrqShell} "${ExecPgmSh}" "${ExecFileBuild}" "${Partners}" "${PwdImport}"'
+                                }
+                            post {
+                                always {
+									script 
+										{
+											env.FolderArtifac = sh script: '[ -d "${ExecFileBuild}/${Partners}" ]', returnStatus: true
+											if (FolderArtifac == 0) {
+												echo "No Exist or Failed Name Folder PARTNERS"
+											}
+											else {
+												sh ('cd ${ExecFileBuild}')
+												sh ("/bin/tar -cvf ${FileTarBackup} ${ExecFileBuild}/Backup/ ${ExecFileBuild}/Errors/ ${ExecFileBuild}/Report/")
+										}
+									}
+								}
+								success {
+                                    echo "Los artefactos ${Partners} desplegados de forma exitosa"
+                                    }
+                                failure {
+									script 
+										{
+											env.ArtifactExist = sh (script: 'grep "already exists" ${ExecFileBuild}/Errors/${Partners}/*', returnStdout: true).trim()
+											if (ArtifactExist == 0) {
+												sh ('cat -b ${ExecFileBuild}/Errors/${Partners}/*')
+											}
+											else {
+												//sh ('cat -b ${ExecFileBuild}/Errors/${Partners}/*')
+												echo "Channels Exist, Not is necesary import!!"
+												sh 'rm -rf $WORKSPACE/Arti*'
+												sh 'rm -rf $WORKSPACE/Shel*'
+											}
+										}
+                                }
+                            }
+                        }
+                    }
+                }
+			stage('Deploy Artifacts Especificos Dependientes') {
+                    parallel 
+					{
+                        stage('Deploy GROUPS') { //10
+                            steps {
+                                    sh '${ExecOrqShell} "${ExecPgmSh}" "${ExecFileBuild}" "${Groups}" "${PwdImport}"'
+                                }
+                            post {
+                                success {
+                                    echo "Los artefactos ${Groups} desplegados de forma exitosa"
+                                    }
+                                failure {
+                                    sh 'cat -b ${ExecFileBuild}/Errors/${Groups}/*'
+                                }
+                            }
+                        }
+                        stage('Deploy ACCOUNTS PERMISSION') { //11
+                            steps {
+                                    sh '${ExecOrqShell} "${ExecPgmSh}" "${ExecFileBuild}" "${Accounts_Permission}" "${PwdImport}"'
+                                }
+                            post {
+                                success {
+                                    echo "Los artefactos ${Accounts_Permission} desplegados de forma exitosa"
+                                    }
+                                failure {
+                                    sh 'cat -b ${ExecFileBuild}/Errors/${Accounts_Permission}/*'
+                                }
+                            }
+                        }
+                        stage('Deploy CODE LISTS') { //12
+                            steps {
+                                    sh '${ExecOrqShell} "${ExecPgmSh}" "${ExecFileBuild}" "${Code_Lists}" "${PwdImport}"'
+                                }
+							post {
+                                always {
+										sh ('cd ${ExecFileBuild}')
+										sh ("/bin/tar -cvf ${FileTarBackup} ${ExecFileBuild}/Backup/ ${ExecFileBuild}/Errors/ ${ExecFileBuild}/Report/")
+								}
+								success {
+                                    echo "Los artefactos ${Code_Lists} desplegados de forma exitosa"
+                                    }
+                                failure {
+									script 
+										{
+											env.ArtifactExist = sh (script: 'grep "already exists" ${ExecFileBuild}/Errors/${Code_Lists}/*', returnStdout: true).trim()
+											if (ArtifactExist == 0) {
+												sh ('cat -b ${ExecFileBuild}/Errors/${Code_Lists}/*')
+											}
+											else {
+												//sh ('cat -b ${ExecFileBuild}/Errors/${Code_Lists}/*')
+												echo "Channels Exist, Not is necesary import!!"
+												sh 'rm -rf $WORKSPACE/Arti*'
+												sh 'rm -rf $WORKSPACE/Shel*'
+											}
+										}
+                                }
+                            }
+                        }
+                        stage('Deploy ROUTING CHANNELS') { //13
+                            steps {
+									script 
+										{
+											sh '${ExecOrqShell} "${ExecPgmSh}" "${ExecFileBuild}" "${Routing_Channels}" "${PwdImport}"'
+										}
+							}
+                            post {
+                                always {
+										sh ('cd ${ExecFileBuild}')
+										sh ("/bin/tar -cvf ${FileTarBackup} ${ExecFileBuild}/Backup/ ${ExecFileBuild}/Errors/ ${ExecFileBuild}/Report/")
+								}
+								success {
+                                    echo "Los artefactos ${Routing_Channels} desplegados de forma exitosa"
+                                    }
+                                failure {
+									script 
+										{
+											env.ArtifactExist = sh (script: 'grep "already exists" ${ExecFileBuild}/Errors/${Routing_Channels}/*', returnStdout: true).trim()
+											if (ArtifactExist == 0) {
+												sh ('cat -b ${ExecFileBuild}/Errors/${Routing_Channels}/*')
+											}
+											else {
+												//sh ('cat -b ${ExecFileBuild}/Errors/${Routing_Channels}/*')
+												echo "Channels Exist, Not is necesary import!!"
+												sh 'rm -rf $WORKSPACE/Arti*'
+												sh 'rm -rf $WORKSPACE/Shel*'
+											}
+										}
+                                }
+                            }
+                        }
+				}
+			}
+			stage ('Zip Backup Artifacts') {
+				steps {
+                        script
+                            {
+                                sh ('cd ${ExecFileBuild}')
+                                sh ("/bin/tar -cvf  ${FileTarBackup} ${ExecFileBuild}/Backup/ ${ExecFileBuild}/Errors/ ${ExecFileBuild}/Report/")
+                        }
+                    }
+                    post {
+                        success {
+                                echo "Zip Backup Artifacts Sucessfully"
+                                }
+                        failure {
+                                echo "Failed Zip Backup Artifacts "
+                        }
+                    }
+                }
+			stage ('Cleanup Environment') {
+                    steps {
+                        script
+                            {
+                                sh 'rm -rf $WORKSPACE/Arti*'
+                                sh 'rm -rf $WORKSPACE/Shel*'
+                        }
+                    }
+                    post {
+                        success {
+                                echo "Cleanup Enviroment  Sucessfully"
+                                }
+                        failure {
+                                echo "Failed Cleanup Enviroment "
+                        }
+                    }
+                }
+			stage('End Deploy Sterling') {
+                steps {
+                    echo 'Bye'
+                    }
+                }		
+	}
+}

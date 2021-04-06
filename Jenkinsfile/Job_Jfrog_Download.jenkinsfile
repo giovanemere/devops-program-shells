@@ -1,0 +1,135 @@
+pipeline {
+    agent { label 'master' }
+    environment {           
+            //Variables Dinamicas
+            FileBuild = "${AntFileBuild}"
+            FileTar = "${AntFileTar}"
+            Project_Name = "${AntProject_Name}"
+            TypeEnvironment = "${AntTypeEnvironment}"
+            RemoteDirectory = "${AntRemoteDirectory}"
+            SourceFiles = "${AntSourceFiles}"
+            Job_Copy = "${AntJob_Copy}"
+            TypeEnvironmentSSH = "${AntTypeEnvironmentSSH}"
+            FileTarShells = "${FilenameShells}${SourceFiles}"
+            TmpWorkJobCopyWorkspace = "${AntTmpWorkJobCopyWorkspace}"
+
+            //
+            TargetFileShells = "${TargetGeneric}/${Project_Name}/${SubProjectNameShells}/${FileTarShells}"
+            TargetFileArtifact = "${TargetGeneric}/${Project_Name}/${TypeEnvironment}/${FileTar}"
+            //TmpWorkJobCopyWorkspace = "$JENKINS_HOME/jobs/${TargetGeneric}/jobs/${Project_Name}/jobs/${Job_Copy}/workspace/"
+    }
+    stages {
+        stage('Validate Folders') {
+            steps {
+                script
+                {
+                    // Create Folder Shells
+                    def Foldershell = sh script: '[ -d "$WORKSPACE/${PgmSh}" ]', returnStatus: true
+                    if (Foldershell == 0) {
+                        echo "Folder $WORKSPACE/${PgmSh} Exist!"
+                    } else {                                
+                        sh 'mkdir $WORKSPACE/${PgmSh}'
+                        sh 'chmod -R 755 $WORKSPACE/${PgmSh}'
+                            }
+
+                    // Create Folder Artifacts Sterling
+                    def FolderArt = sh script: '[ -d "$WORKSPACE/${FileBuild}" ]', returnStatus: true
+                    if (FolderArt == 0) {
+                        echo "Folder $WORKSPACE/${FileBuild} Exist!"
+                    } else {                                
+                        sh 'mkdir $WORKSPACE/${FileBuild}'
+                        sh 'chmod -R 755 $WORKSPACE/${FileBuild}'
+                    }
+                }
+            }
+        }
+        stage('Download Programs Jfrog') {
+            steps {
+                    rtDownload (
+                    serverId: Server_ID,
+                    spec: '''{
+                        "files": [
+                            {
+                                "pattern": "${TargetFileShells}",
+                                "target": "$WORKSPACE/"
+                            } 
+                        ]
+                    }'''
+                )
+            }
+            post {
+                success {
+                    echo "Artifacts Download Succesfully"
+                    
+                }
+                failure {
+                        echo "Failed Download Artifact Progrmas"
+                    }
+                }
+            }
+        stage('Download Change Jfrog') {
+            steps {
+                    rtDownload (
+                    serverId: Server_ID,
+                    spec: '''{
+                        "files": [
+                            {
+                                "pattern": "${TargetFileArtifact}",
+                                "target": "$WORKSPACE/"
+                            } 
+                        ]
+                    }'''
+                )
+            }
+            post {
+                success {
+                    echo "Artifacts Download Succesfully"
+                    
+                }
+                failure {
+                    echo "Failed Download Artifact Change"
+                }
+            }
+        }
+        stage('Prepare Artifacts Shells'){
+            environment
+            {
+                FilenameTar = sh(script: 'find . -type f -name "${FileTarShells}" | sort --version-sort --field-separator=_ -r | head -1 | xargs -n 1 basename', returnStdout: true).trim() 
+            }
+            steps {
+                script
+                    {
+                    //Create Folder Copy Artifacts
+                    sh 'mkdir -p ${TmpWorkJobCopyWorkspace}'
+                    
+                    //Prepare copy Shells                    
+                    sh 'mv $WORKSPACE/${Project_Name}/${SubProjectNameShells}/${FilenameTar} ${TmpWorkJobCopyWorkspace}'
+                    
+                    //Prepare copy Artifacts
+                    sh 'mv $WORKSPACE/${Project_Name}/${TypeEnvironment}/${FileTar} ${TmpWorkJobCopyWorkspace}'
+
+                    //List Folder Job_SSH_Copy
+                    sh 'ls -ltr ${TmpWorkJobCopyWorkspace}'
+                }
+            }
+        }
+        stage ('Removing files') {
+                steps {
+                    script
+                        {
+                            //Clean WORKSPACE Job
+                            sh 'rm -rf $WORKSPACE/*'
+                    }
+                }
+                post {
+                    success {
+                            echo "Cleanup Enviroment  Sucessfully"
+                            }
+                    failure {
+                            echo "Failed Cleanup Enviroment "
+                    }
+                }
+            }
+    
+    }
+}

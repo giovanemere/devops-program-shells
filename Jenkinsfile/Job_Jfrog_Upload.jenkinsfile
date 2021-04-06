@@ -1,0 +1,78 @@
+pipeline {
+    agent { label 'master' }
+    environment {
+            //Variables Dinamicas
+                TempWorkspace = "${AntTempWorkspace}"
+                FileTar = "${AntFileTar}"
+                TypeEnvironment = "${AntTypeEnvironment}"
+                
+                //Variables Jfrog
+                TargetBase = "${TargetGeneric}/${Project_Name}/${TypeEnvironment}/"
+
+                //Extraer WorkSpace por Job
+                ComTempWork = "${WORKSPACE}"
+    }
+    stages {
+        stage('Verify Artifact') {
+            steps {
+                script{
+                    //extrae nombre JOb
+                        env.NombreJobWork = ComTempWork.substring(0,ComTempWork.lastIndexOf('/'))
+                        env.TempNombreJobWork = NombreJobWork.substring(0,NombreJobWork.lastIndexOf('/'))
+                        env.TempFileTar = "${TempNombreJobWork}/${TempWorkspace}/workspace/${FileTar}"
+                        sh 'echo "TempFileTar: ${TempFileTar}"'
+                    
+                    //Move Artifacts with spaces
+                    String cmd = "Move Artifact Workspace"
+                    file = sh (script: 'mv -v "${TempFileTar}" $WORKSPACE/',returnStdout: true).trim()
+                    
+                    //Controller Filter Pattern Upload Jfrog Artifactory
+                    env.FileWorkspace = "$WORKSPACE/${Pattern}"
+                }
+            }
+        }
+        stage('Upload Artifact Jfrog') {
+            steps {
+                rtUpload (
+                buildName: JOB_NAME,
+                buildNumber: BUILD_NUMBER,
+                serverId: Server_ID,
+                spec: '''{
+                        "files": [
+                            {
+                                "pattern": "${FileWorkspace}",
+                                "target": "${TargetBase}",
+                                "recursive": "false"
+                            }
+                        ]
+                    }'''
+                )
+            }
+            post {
+                success {
+                        echo "Upload Artifact Sucessfully"
+                        }
+                failure {
+                        echo "Failed Upload Artifact "
+                }
+            }
+        }
+        stage ('Removing files') {
+                steps {
+                    script
+                        { WORKSPACE
+                            sh 'rm -rf $WORKSPACE/*'
+                    }                            
+                }
+                post {
+                    success {
+                            echo "Cleanup Enviroment  Sucessfully"
+                            }
+                    failure {
+                            echo "Failed Cleanup Enviroment "
+                    }
+                }
+            }
+    
+    }
+}

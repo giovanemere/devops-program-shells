@@ -1,0 +1,65 @@
+pipeline {
+agent { label 'master' }
+    stages {
+        stage('please upload file') {
+            steps {
+                node('master') {
+                    script{
+                        // Get file using input step, will put it in build directory
+                        def inputFile = input message: 'Upload file', parameters: [file(name: 'Filename_Artifact_Manual.tar')]
+                        // Read contents and write to workspace
+                        writeFile(file: 'Filename_Artifact_Manual.tar', text: inputFile.readToString())
+                        // Stash it for use in a different part of the pipeline
+                        stash name: 'data', includes: 'Filename_Artifact_Manual.tar'
+                        
+                        def FolderWorkspace = "$WORKSPACE"
+                        env.TempWorkspace =FolderWorkspace.substring(0,FolderWorkspace.indexOf('@'))
+                        env.FileWorkspace = "${TempWorkspace}/${FileTar}"
+                        
+                        //Move Artifacts with spaces
+                        sh 'mv $WORKSPACE/Filename_Artifact_Manual.tar "${FileWorkspace}"'
+                    }
+                }
+            }
+        }
+        stage('Sub Job_Jfrog_Upload') {
+            steps {
+                script {
+                        build job: "Job_Jfrog_Upload", parameters: [
+                            string(name: 'AntTempWorkspace', value: "$TempWorkspace"),
+                            string(name: 'AntFileTar', value: "$FileTar")
+                            ]
+                        }
+                    }
+            post {
+                success {
+                        echo "Sub Job Sterling Sucessfully: Job_Jfrog_Upload"
+                        }
+                failure {
+                        echo "Failed Sub Job Sterling: Job_Jfrog_Upload"
+                    }
+                }
+            }
+            stage ('Removing files') {
+                steps {
+                    script
+                        { 
+                            //Clean WORKSPACE Temporal
+                            sh 'rm -rf $WORKSPACE/*'
+                            
+                            //Clean WORKSPACE Job
+                            sh 'rm -rf "$TempWorkspace/Filename_Artifact_Manual.tar"'
+                    }                            
+                }
+                post {
+                    success {
+                            echo "Cleanup Enviroment  Sucessfully"
+                            }
+                    failure {
+                            echo "Failed Cleanup Enviroment "
+                    }
+                }
+            }
+
+    }
+}

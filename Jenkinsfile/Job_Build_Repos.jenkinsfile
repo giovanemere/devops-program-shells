@@ -1,0 +1,178 @@
+pipeline {
+    agent { label 'master' }
+    environment {
+            //Receive Variables
+            UriGit = "${AntUriGit}"
+            UserIDGit = "${AntUserIDGit}"
+            BrachGit = "${AntBrachGit}"
+            PgmPattern = "${AntPgmPattern}"
+            Accion = "${AntAccion}"
+            Tipo = "${AntTipo}"
+            TmpWokJobMasterRepos = "${AntTmpWokJobMasterRepos}"
+
+            //Variable Fixed
+            FileTarShells = "${FilenameShells}*.tar"
+            Tag_Branch_Shell = "$WORKSPACE/${PgmSh}/${ComplementShells}/${Tag_Branch}"
+
+            //Variables de Shells
+            PathFolderVars = "${PgmSh}/${FolderVars}"
+            VarSh = "${PgmSh}/${ComplementShells}/${BashVars}"
+        }
+        stages {
+            stage('Checkout Artifacts'){
+            steps {
+                script {
+                    checkout([$class: 'GitSCM', branches: [[name: "*/${BrachGit}"]], doGenerateSubmoduleConfigurations: false, 
+                            extensions: [[$class: 'CloneOption', timeout: 30, noTags: false, shallow: true]]
+                                        +[[$class: 'LocalBranch', localBranch: '']]
+                                        +[[$class: 'CleanBeforeCheckout', deleteUntrackedNestedRepositories: false]],
+                            submoduleCfg: [], userRemoteConfigs: [
+								[credentialsId: UserIDGit, url: UriGit]]])           
+                    }
+                }
+                post {
+                    success {
+                                echo "Sucessfully Checkout Repositorio Bitbucket ${UriGit}"
+                            }
+                    failure {
+                                echo "Failed Checkout Artifacts"
+								sh 'rm -rf $WORKSPACE/*'
+                    }
+                }
+            }
+            stage("Variables") {
+            steps {
+                script {
+                    //Control URL Bitbucket
+                    env.ComUriGit1 = UriGit.substring(0,UriGit.indexOf('/')+2)
+                    env.ComUriGit2 = UriGit.substring(UriGit.indexOf('/')+2)
+                    env.TemUriGit2 = "@${ComUriGit2}"
+                    //Correcion Permisos Folder Shell
+                    sh 'chmod -R 700 $WORKSPACE/${PgmSh}'
+                    //Obtenemos numero del cambio
+                    env.Change_number = sh(script: 'git log --oneline | grep -F -m 1 "feature/C"| sed "s/.*feature\\/\\(C[0-9]*\\).*/\\1/"', returnStdout: true).trim() 
+                    }                
+                }
+				post {
+                    success {
+                                echo "Sucessfully Obtain feature: ${Change_number} and URL Bitbucket ${env.TemUriGit2}"
+                            }
+                    failure {
+                                echo "Verified URL Bitbucket ${env.TemUriGit2} range : -1"
+								sh 'rm -rf $WORKSPACE/*'
+                    }
+                }
+            }
+            stage ('Diff Artifact') {
+			steps {
+				withCredentials([usernamePassword(credentialsId: 'UserBitbucketSterling', passwordVariable: 'PasswordGit', usernameVariable: 'UserBitSterling')]){
+				script {
+						env.TemUriGit1 = "${ComUriGit1}${UserBitSterling}"
+						
+						//Variables almacenadas en archivo fisico
+						def Pattern_change_number = "${env.Change_number}-*"
+						def Temp_Stable_Point = sh(script: "git tag -l ${Stable_Point} | sort --version-sort --reverse | head -1 | cut -d \"-\" -f2", returnStdout: true).trim()
+						env.VarTemp_Stable_Point = Temp_Stable_Point
+						def Last_tag = sh(script: "git tag -l ${Pattern_change_number} | sort --version-sort --field-separator=- --reverse | head -1 | cut -d \"-\" -f2", returnStdout: true).trim()
+
+						//Generamos siguiente tag
+						def Next_tag_version = Last_tag?Last_tag.toInteger()+1:1                        
+						def Next_tag_name = "${env.Change_number}"+'-'+"${Next_tag_version}"
+						env.Tag_name = Next_tag_name
+
+						//Obtener los artefactos
+						sh ("git checkout feature/${env.Change_number}")
+						//sh ("git checkout ${BrachGit}")
+						//sh ("git pull ${TemUriGit1}:${PasswordGit}${TemUriGit2}")
+
+						//Crear Carpeta Artefactos
+						sh ("[ -d $WORKSPACE/${env.Change_number} ] && echo 'folder exist: 1' || mkdir $WORKSPACE/${env.Change_number}")
+
+						//Listar los artefactos del ultimo commit
+						sh ("git diff --name-only \"feature/${env.Change_number}\"..${Temp_Stable_Point} | grep \".xml\" |xargs cp --parents -t $WORKSPACE/${env.Change_number}/ |xargs ls -ltr $WORKSPACE/${env.Change_number}/")
+						
+						//Tagear Repositorio
+						sh ('$Tag_Branch_Shell $WORKSPACE "$Change_number" "${TemUriGit1}" "${TemUriGit2}" "${PasswordGit}" "${Tag_name}" ')
+						}
+					}
+				}
+				post {
+					success {
+								echo "Sucessfully Diff Artifact}"
+							}
+					failure {
+								echo "Failed Step Diff Artifact"
+					}
+                }
+            }
+            stage ('Compress Artifact') {
+                steps {
+                    script {
+                        //Variables Programs
+                        env.FileBuild = "${Filename_Artifact}${Tag_name}" //Artifact_C1232154-2
+                        env.FileTar = "${env.FileBuild}.tar" //Artifact_C1232154-2.tar
+                        env.PgmUtil = "./${Util}"
+
+                        //Permisions Folder Programs
+                        sh ("chmod -R 755 $WORKSPACE/${PgmSh}")
+
+                        //Compress Artifact
+                        sh ("${PgmUtil} ${PgmZip} ${Tipo} $WORKSPACE/${env.Change_number} $WORKSPACE ${FileTar} ${Accion} ${PgmPattern}")
+
+                        //Move Artifat WORKSPACE
+                        sh ("mv $WORKSPACE/${env.Change_number}/${FileTar} $WORKSPACE/")
+
+                        //Storage File Variable
+						sh ("mkdir -p ${TmpWokJobMasterRepos}/${PathFolderVars}")
+                        sh ("$WORKSPACE/${VarSh} ${TmpWokJobMasterRepos} ${PathFolderVars} ${VarName} ${env.FileTar}")
+                        sh 'cat ${TmpWokJobMasterRepos}/$PathFolderVars/$VarName'
+                    }
+                }
+                post {
+                    success {
+                                echo "Compress Artifact Sucessfully File: ${FileTar}"
+                            }
+                    failure {
+                                echo "Failed Compress Artifact "
+								sh 'rm -rf $WORKSPACE/*'
+                    }
+                }
+            }
+            stage ('Removing files') {
+                steps {
+                    script
+                        { 
+                            //Clean WORKSPACE Job
+                            sh 'rm -rf $WORKSPACE/ACCOUNT_PERMISSION/'
+							sh 'rm -rf $WORKSPACE/BUSINESS_PROCESS/'
+                            sh 'rm -rf $WORKSPACE/Shells/'
+                            sh 'rm -rf $WORKSPACE/ADAPTERS/'
+                            sh 'rm -rf $WORKSPACE/GROUPS/'
+                            sh 'rm -rf $WORKSPACE/OBSCUR*'
+                            sh 'rm -rf $WORKSPACE/COD*'
+                            sh 'rm -rf $WORKSPACE/XSLT/'
+                            sh 'rm -rf $WORKSPACE/SSH_PROFILES/'
+                            sh 'rm -rf $WORKSPACE/TEMPLATES/'
+                            sh 'rm -rf $WORKSPACE/SCHEDULES/'
+                            sh 'rm -rf $WORKSPACE/ROUTING_CHANNELS/'
+                            sh 'rm -rf $WORKSPACE/PARTN*' 
+                            sh 'rm -rf $WORKSPACE/ADAPTERS/'
+                            sh 'rm -rf $WORKSPACE/ACCOUNTS_PERMISSION/'
+                            sh 'rm -rf $WORKSPACE/*.md'
+							sh 'rm -rf $WORKSPACE/*.txt'
+                            sh 'rm -rf $WORKSPACE/${Change_number}/'
+                    }                            
+                }
+                post {
+                    success {
+                            echo "Cleanup Enviroment  Sucessfully"
+                            }
+                    failure {
+                            echo "Failed Cleanup Enviroment "
+                    }
+                }
+            }
+
+    }
+    
+}

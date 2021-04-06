@@ -1,0 +1,93 @@
+pipeline {
+    agent { label 'master' }
+    environment {
+            //Variables Dinamicas
+                //FileName
+                FileBuild = "${FilenameShells}${BUILD_NUMBER}"
+                
+                //Zip
+                FileTar = "${FileBuild}.tar"
+                FileWorspace = "$WORKSPACE/${FileTar}"
+                PgmUtil = "./${Util}"
+                
+                //Variables Jfrog
+                TargetBase = "${TargetGeneric}/${Project_Name}"
+                TargetBaseBeta = "${TargetBase}/${SubProject_Name_Shells}/"
+                TargetFileBeta = "${TargetBaseBeta}${FileTar}"
+                TargetBaseBetaSter = "${Project_Name}/${SubProject_Name_Shells}/${FileTar}"
+        }
+        stages {    
+            stage ('Download Artifact') {
+                steps {
+                    script {
+                        //Verificate VAriables Globasles
+                        sh 'echo "PgmUtil : ${PgmUtil} "'
+                        sh 'echo "PgmZip: ${PgmZip} "'
+                        sh 'echo "Tipo: ${Tipo} "'
+                        sh 'echo "WORKSPACE: $WORKSPACE "'
+                        sh 'echo "FileTar: ${FileTar} "'
+                        sh 'echo "Accion: ${Accion} "'
+                        sh 'echo " PgmPattern: ${PgmPattern}"'
+
+                        def Str = "${FilenameShells}"
+                        def PgmSh = Str.split("_")
+                        echo "Download Repository ${GIT_URL} Sucessfully!!"
+                    }
+                }
+                
+            }   
+            stage ('Compress Artifact') {
+                steps {
+                        sh 'chmod -R 755 $WORKSPACE/'
+                        sh '${PgmUtil} ${PgmZip} ${Tipo} $WORKSPACE $WORKSPACE ${FileTar} ${Accion} "${PgmPattern}"'
+                }
+                post {
+                    success {
+                            echo "Compress Artifact Sucessfully"
+                            }
+                    failure {
+                            echo "Failed Compress Artifact "
+                    }
+                }
+            }
+            stage('Upload Artifact Jfrog') {
+                steps {
+                        rtUpload (
+                        buildName: JOB_NAME,
+                        buildNumber: BUILD_NUMBER,
+                        serverId: Server_ID,
+                        spec: '''{
+                                "files": [
+                                    {
+                                        "pattern": "${FileWorspace}",
+                                        "target": "${TargetBaseBeta}",
+                                        "recursive": "false"
+                                    }
+                                ]
+                            }'''
+                        )
+                    }
+                post {
+                    success {
+                            echo "Upload Artifact Sucessfully"
+                            }
+                    failure {
+                            echo "Failed Upload Artifact "
+                    }
+                }
+            }
+            stage('Removing files') {
+                steps {
+                         sh 'rm -rf $WORKSPACE/*' 
+                      }
+                post {
+                    success {
+                            echo "Cleanup Enviroment Sucessfully"
+                            }
+                    failure {
+                            echo "Failed Cleanup Enviroment "
+                    }
+                }   
+            }
+    }
+}

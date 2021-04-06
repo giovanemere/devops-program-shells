@@ -1,0 +1,93 @@
+pipeline {
+    agent { label 'master' }
+    environment { 
+                //Variables Zip Artifacts
+                Tipo = "Compress"
+                Accion = "zFile"
+                PgmPattern = "*"
+
+                //Variables Jfrog
+                Project_Name = "Sterling"
+                
+				//Variables Dinamicas
+                
+				//FileName
+                FileBuild = "${FilenameShells}${BUILD_NUMBER}"
+                PgmUtil = "${ComplementShells}/util-compress.sh"
+                //Zip
+                FileTar = "${FileBuild}.tar"
+                FileWorspace = "$WORKSPACE/${FileTar}"
+                
+                //Variables Jfrog
+                TargetBase = "${TargetGeneric}/${Project_Name}"
+                FileTarget = "${TargetBase}/${SubProjectNameShells}/${FileTar}"
+        }
+        stages {    
+            stage ('Download Artifact') {
+                steps {
+                        echo "Download Repository ${GIT_URL} Sucessfully!!"
+                }
+                
+            }   
+            stage ('Compress Artifact') {
+                steps {
+                        sh 'chmod -R 755 $WORKSPACE/' 
+                        sh 'rm -rf $WORKSPACE/.git*'
+                        sh '${PgmUtil} ${PgmZip} ${Tipo} $WORKSPACE $WORKSPACE ${FileTar} ${Accion} "${PgmPattern}"'
+                }
+                post {
+                    success {
+                            echo "Compress Artifact ${FileTar}  Sucessfully"
+                            }
+                    failure {
+                            echo "Failed Compress Artifact "
+                    }
+                }
+            }
+            stage('Upload Artifact Jfrog') {
+                steps {
+                        rtUpload (
+                        buildName: JOB_NAME,
+                        buildNumber: BUILD_NUMBER,
+                        serverId: Server_ID,
+                        spec: '''{
+                                "files": [
+                                    {
+                                        "pattern": "${FileWorspace}",
+                                        "target": "${FileTarget}",
+                                        "recursive": "false"
+                                    }
+                                ]
+                            }'''
+                        )
+                    }
+                post {
+                    success {
+                            echo "Upload Artifact Sucessfully"
+                            }
+                    failure {
+                            echo "Failed Upload Artifact "
+                    }
+                }
+            }
+            stage('Removing files') {
+                steps {
+                         sh 'rm -rf $WORKSPACE/*' 
+                      }
+                post {
+                    success {
+                            echo "Cleanup Enviroment Sucessfully"
+                            }
+                    failure {
+                            echo "Failed Cleanup Enviroment "
+                    }
+                }   
+            }
+            stage('End Build Sterling') {
+                steps {
+                    echo 'Bye'
+                }
+            }
+
+    }
+}

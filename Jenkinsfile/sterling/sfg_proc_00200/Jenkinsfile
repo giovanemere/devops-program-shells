@@ -1,0 +1,174 @@
+pipeline {
+    agent { label 'master' }
+    //Job_Master_Repo_Sfg_Proc_0u0056
+    //Folder-Jenkinsfile/Job_Master_Sterling_B2B.jenkinsfile
+     environment {                 
+        //Información  Repo
+        UriGit = "https://bitbucket.agile.bns/scm/rcmcol/sfg_proc_00056.git"
+        UserIDGit = "UserBitbucketSterling"
+        
+        //Revisar como sacar del git
+        BrachGit = "develop"  //develop/release/master //Revisar como sacar del git
+        TypeEnvironment= "Develop" //Develop/Release/Production //Revisar como sacar del git
+        TypeEnvironmentSSH = "Develop" //Develop/UAT/PRDN1/PRDN1 //Revisar como sacar del git
+        Job_Copy = "Job_SSH_Copy_${TypeEnvironmentSSH}"
+
+        //Job Upload
+        Project_Name = "Sterling"  //Sterling/ControlCenter
+        Pattern = "*.tar"       //duplicado
+        SourceFiles = "*.tar"   //duplicado
+        RemoteDirectory = "/Sterling/import/workspace/DevSecOps/Sterling/Job_SSH_Deploy/"
+        PgmPattern = "*.xml"
+        Accion = "zFile"
+        Tipo = "Compress"
+
+        //Variables File storage
+        PathFolderVars = "${PgmSh}/${FolderVars}"
+
+        //Workspace
+        TmpWokJobBuildRepos = "$JENKINS_HOME/workspace/${TargetGeneric}/${Project_Name}/Job_Build_Repos"
+        TmpWokJobJfrogUpload = "$JENKINS_HOME/workspace/${TargetGeneric}/${Project_Name}/Job_Jfrog_Upload"
+        TmpWokJobJfrogDownload = "$JENKINS_HOME/workspace/${TargetGeneric}/${Project_Name}/Job_Jfrog_Download"
+        TmpWorkJobCopyWorkspace = "$JENKINS_HOME/workspace/${TargetGeneric}/${Project_Name}/${Job_Copy}"
+
+            //Variable workspace Job_Jfrog_Upload 
+        }
+        stages {
+        stage('Job Build Repos') {
+        steps {
+                script {
+                        build job: "Job_Build_Repos", parameters: [
+                                string(name: 'AntUriGit', value: "$UriGit"),
+                                string(name: 'AntUserIDGit', value: "$UserIDGit"),
+                                string(name: 'AntBrachGit', value: "$BrachGit"),
+                                string(name: 'AntPgmPattern', value: "$PgmPattern"),
+                                string(name: 'AntAccion', value: "$Accion"),
+                                string(name: 'AntTmpWokJobMasterRepos', value: "$WORKSPACE"),
+                                string(name: 'AntTipo', value: "$Tipo")
+                                ]                                
+                                //Parameters Upload
+                                env.FileTar = sh (script: 'cat $WORKSPACE/$PathFolderVars/$VarName', returnStdout: true).trim()
+                                env.FileBuild = FileTar.substring(0,FileTar.indexOf('.'))
+                        }
+                }
+                post {
+                success {                                
+                                //Completo Satisfactoriamente
+                                echo "Sub Job Build Repos: ${BrachGit} Sucessfully"
+                        }
+                failure {
+                                //Fallo Job revisar Ejecución en el Job Interno
+                                echo "Failed Job Build Repos"
+                                }
+                        }
+        
+                }
+        stage('Job Jfrog Upload') {
+        steps {
+                script {
+                        build job: "Job_Jfrog_Upload", parameters: [
+                                string(name: 'AntTempWorkspace', value: "$TmpWokJobBuildRepos"),
+                                string(name: 'AntFileTar', value: "$FileTar"),
+                                string(name: 'AntProject_Name', value: "$Project_Name"),
+                                string(name: 'AntTypeEnvironment', value: "$TypeEnvironment"),
+                                string(name: 'AntPattern', value: "$Pattern")
+                                ]
+                        }
+                }
+                post {
+                success {
+                                //Completo Satisfactoriamente
+                                echo "Sub Job Jfrog Upload: ${FileTar} Sucessfully"
+
+                        }
+                failure {
+                                //Fallo Job revisar Ejecución en el Job Interno
+                                echo "Failed Sub Job Jfrog Upload"
+                        }
+                }
+        }
+        stage('Job Jfrog Download') {
+        steps {
+                script  {
+                        build job: "Job_Jfrog_Download", parameters: [
+                                string(name: 'AntFileBuild', value: "$FileBuild"),
+                                string(name: 'AntTempWorkspace', value: "$TmpWokJobBuildRepos"),
+                                string(name: 'AntFileTar', value: "$FileTar"),
+                                string(name: 'AntProject_Name', value: "$Project_Name"),
+                                string(name: 'AntTypeEnvironment', value: "$TypeEnvironment"),
+                                string(name: 'AntSourceFiles', value: "$SourceFiles"),
+                                string(name: 'AntRemoteDirectory', value: "$RemoteDirectory"),
+                                string(name: 'AntJob_Copy', value: "$Job_Copy"),
+                                string(name: 'AntTmpWorkJobCopyWorkspace', value: "${TmpWorkJobCopyWorkspace}"),
+                                string(name: 'AntTypeEnvironmentSSH', value: "$TypeEnvironmentSSH")
+                                ]
+                        }
+                }
+                post {
+                success {
+                                //Completo Satisfactoriamente
+                                echo "Sub Job Jfrog Download: ${FileBuild} Sucessfully"
+                        }
+                failure {
+                                //Fallo Job revisar Ejecución en el Job Interno
+                                echo "Failed Sub Job Jfrog Download"
+                        }
+                }
+        }
+        stage("Job Copy Artifacts SSH") {
+                steps {
+                        build job: "Job_SSH_Copy_${TypeEnvironmentSSH}", parameters: [
+                        string(name: 'AntSourceFiles', value: "${SourceFiles}"),
+                        string(name: 'AntRemoteDirectory', value: "${RemoteDirectory}")
+                        ]
+                }
+                post {
+                        success {
+                                        //Completo Satisfactoriamente
+                                        echo "Sub Job Copy Artifacts SSH: ${RemoteDirectory} Sucessfully"
+                                 }
+                        failure {
+                                        //Fallo Job revisar Ejecución en el Job Interno
+                                        echo "Failed Sub Job Copy Artifacts SSH"
+                        }
+                }
+        }
+        stage("Job SSH Deploy Sterling") {
+                steps {
+                        build job: "Job_SSH_Deploy" , wait: true
+                }
+                post {
+                        success {
+                                        //Completo Satisfactoriamente
+                                        echo "Sub Job SSH Deploy Sterling: Sucessfully"
+                                 }
+                        failure {
+                                        //Fallo Job revisar Ejecución en el Job Interno
+                                        sh 'rm -rf ${TmpWorkJobCopyWorkspace}/*'
+                                        echo "Failed Sub Job SSH Deploy Sterling"
+                        }
+                }
+        }
+        stage ('Removing files') {
+                steps {
+                    script
+                        { 
+                            //Clean WORKSPACE Job
+                            sh 'rm -rf $WORKSPACE/*'
+                            sh 'rm -rf ${TmpWorkJobCopyWorkspace}*'
+                    }                            
+                }
+                post {
+                    success {
+                                //Completo Satisfactoriamente
+                                echo "Cleanup Enviroment  Sucessfully"
+                            }
+                    failure {
+                                //Fallo Job revisar Ejecución en el Job Interno
+                                echo "Failed Cleanup Enviroment "
+                        }
+                }
+        }
+    
+    }
+}
