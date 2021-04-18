@@ -25,6 +25,5 @@
         "targets": [
             { "os": "default", "uri": "${Log_Build_Url}" }
         ]
-    }
     }]
 }
