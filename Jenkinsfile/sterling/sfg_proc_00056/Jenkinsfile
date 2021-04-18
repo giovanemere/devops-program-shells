@@ -1,88 +1,93 @@
 pipeline {
     agent { label 'master' }
-     environment {                 
-
-        //Job Upload
-        Project_Name = "Sterling"  //Sterling/ControlCenter
-        Pattern = "*.tar"       //duplicado
-        SourceFiles = "*.tar"   //duplicado
+     environment {        
+       //Job Fijas
+        Project_Name = "Sterling"  //Sterling|ControlCenter
+        Pattern = "*.tar"
         PgmPattern = "*.xml"
         Accion = "zFile"
         Tipo = "Compress"
 
         //Variables Dinamicas
-        //Información  Repo
-        UriGit = "$GIT_URL"
-        UserIDGit = "UserBitbucketSterling"
-        
-        //Revisar como sacar del git
-        ComBrachGit = "$GIT_BRANCH"  //develop/release/master //Revisar como sacar del git
-        ComTempWork = "$WORKSPACE"  //develop/release/master //Revisar como sacar del git
+                //Información  Repo
+                UriGit = "$GIT_URL"
+                UserIDGit = "UserBitbucketSterling"
+                
+                //Extraer WorkSpace por Job
+                ComBrachGit = "$GIT_BRANCH"
+                ComTempWork = "$WORKSPACE"
 
-        //Variables File storage
-        RemoteDirectory = "${RemoteDirectory}"
-        PathFolderVars = "${PgmSh}/${FolderVars}"
+                //Variables File storage
+                RemoteDirectory = "${RemoteDirectory}"
+                PathFolderVars = "${PgmSh}/${FolderVars}"
 
+                //Name Jobs
+                Job_Name_Build = "Job_Build_Repos"
+                Job_Name_Jfrog_Upload = "Job_Jfrog_Upload"
+                Job_Name_Jfrog_Download = "Job_Jfrog_Download"
+                Job_Name_SSH_Copy= "Job_SSH_Copy"
+                Job_Name_SSH_Deploy= "Job_SSH_Deploy"
+                
+                // Define Name Project Jira
+                JiraProjectKey = "STER"
         }
         stages {
-        stage ('Variables') {
+        stage ('Job Variables Build') {
                 steps {
                     script
                         {
-                        //extrae nombre JOb
-                        env.TempWorkSpacePru1 = ComTempWork.substring(ComTempWork.lastIndexOf('/')+1)
-                        sh 'echo "nombreJob: $TempWorkSpacePru1"'
 
+                        //WorkSpace Principal Listo
+                        env.NombreJobWork = ComTempWork.substring(0,ComTempWork.lastIndexOf('/'))
+                        env.TempNombreJobWork = NombreJobWork.substring(0,NombreJobWork.lastIndexOf('/'))
+
+                        //Obtain Branch
                         env.BrachGit = ComBrachGit.substring(ComBrachGit.indexOf('/')+1)
                         sh 'echo "BrachGit: $BrachGit"'
 
-                        //extrae directamente opcion2
-                        env.TempWorkSpaceOK = ComTempWork.substring(0,ComTempWork.lastIndexOf('Job_Master_Repo_Sfg_Proc_00056'))
-                        sh 'echo "TemWorkspaceOK: $TempWorkSpaceOK"'
-
-                        //Complemtanta Job por variable
-                        env.TempWorkSpace = ComTempWork.substring(0,ComTempWork.lastIndexOf("${TempWorkSpacePru1}"))
-                        sh 'echo "RutaTempWork: $TempWorkSpace"'
-
-                        env.TmpWokJobBuildRepos = "${TempWorkSpace}/Job_Build_Repos"
-                        sh 'echo "TmpWokJobBuildRepos: $TmpWokJobBuildRepos"'
-                        
-                        env.TmpWokJobJfrogUpload = "${TempWorkSpace}/Job_Jfrog_Upload"
-                        sh 'echo "TmpWokJobJfrogUpload: $TmpWokJobJfrogUpload"'
-
-                        env.TmpWokJobJfrogDownload = "${TempWorkSpace}/Job_Jfrog_Download"
-                        sh 'echo "TmpWokJobJfrogDownload: $TmpWokJobJfrogDownload"'
-
+                        //Variables Dinamicas                        
                         env.TypeEnvironment= "${env.BrachGit}" //Develop/Release/Production //Revisar como sacar del git
-                        sh 'echo "TypeEnvironment: $TypeEnvironment"'   
-
-                        env.TypeEnvironmentSSH = "${env.BrachGit}" //Develop/UAT/PRDN1/PRDN1 //Revisar como sacar del git
-                        sh 'echo "TypeEnvironmentSSH: $TypeEnvironmentSSH"'   
-                        
-                        env.Job_Copy = "Job_SSH_Copy_${env.TypeEnvironmentSSH}"
-                        sh 'echo "Job_Copy: $Job_Copy"'   
-
-                        env.TmpWorkJobCopyWorkspace = "${TempWorkSpace}/${env.Job_Copy}"
+                        env.TypeEnvironmentSSH = "${env.BrachGit}" //Develop/UAT/PRDN1/PRDN1 //Revisar como sacar del git                        
+                       
+                       //Variables Job Copy SSH
+                        env.TmpJob_Copy = "${Job_Name_SSH_Copy}_${env.TypeEnvironmentSSH}"
+                        env.TmpWorkJobCopyWorkspace = "${TempNombreJobWork}/${TmpJob_Copy}/workspace"
                         sh 'echo "TmpWorkJobCopyWorkspace: $TmpWorkJobCopyWorkspace"'
-                                                
+
+                        //Variable Path Template Groovy Jira
+                        env.TempCommonJobWork = TempNombreJobWork.substring(0,TempNombreJobWork.lastIndexOf('/'))
+                        env.TempJobWorkCommon = TempCommonJobWork.substring(0,TempCommonJobWork.lastIndexOf('/'))
+                        
+                        def Temp_Path_Job_Name_Build = sh(script: "find ${TempJobWorkCommon} -name ${Job_Name_Build}", returnStdout: true).trim()
+                        env.Path_Job_Name_Build = "${Temp_Path_Job_Name_Build}"
+                        sh 'echo "Path_Job_Name_Build: $Path_Job_Name_Build"'
+
+                        env.ExecTaskJira = "${Temp_Path_Job_Name_Build}/workspace/${PgmSh}/groovy/jira-notification.groovy"
+                        sh 'echo "ExecTaskJira: $ExecTaskJira"'
                     }                            
                 } 
         }      
         stage('Job Build Repos') {
         steps {
                 script {
-                        build job: "Job_Build_Repos", parameters: [
+                  build job: "${Path_Job_Common}/${Job_Name_Build}", parameters: [
                                 string(name: 'AntUriGit', value: "$UriGit"),
                                 string(name: 'AntUserIDGit', value: "$UserIDGit"),
                                 string(name: 'AntBrachGit', value: "$env.BrachGit"),
                                 string(name: 'AntPgmPattern', value: "$PgmPattern"),
                                 string(name: 'AntAccion', value: "$Accion"),
-                                string(name: 'AntTmpWokJobMasterRepos', value: "$TmpWokJobBuildRepos"),
+                                string(name: 'AntTmpWokJobMasterRepos', value: "$WORKSPACE"),
                                 string(name: 'AntTipo', value: "$Tipo")
                                 ]                                
-                                //Parameters Upload
+                                //Obtain FileName Use post build and Jobs Jfron and SSH
                                 env.FileTar = sh (script: 'cat $WORKSPACE/$PathFolderVars/$VarName', returnStdout: true).trim()
                                 env.FileBuild = FileTar.substring(0,FileTar.indexOf('.'))
+                                sh 'echo "${FileTar}"'
+
+                                //Build Change Number for Teams and Jira                         
+                                env.TempChangeNumber = FileBuild.substring(0,FileBuild.indexOf('-'))
+                                env.ChangeNumber = TempChangeNumber.substring(TempChangeNumber.indexOf('_')+1)
+                                sh 'echo "${ChangeNumber}"'
                         }
                 }
                 post {
@@ -91,22 +96,22 @@ pipeline {
                                 echo "Sub Job Build Repos: ${env.BrachGit} Sucessfully"
                         }
                 failure {
-                                //Fallo Job revisar Ejecución en el Job Interno
-                                echo "Failed Job Build Repos"
-                                }
+                            //Fallo Job revisar Ejecución en el Job Interno
+                            echo "Failed Job Build Repos"
+                            }
                         }
         
                 }
         stage('Job Jfrog Upload') {
         steps {
                 script {
-                        build job: "Job_Jfrog_Upload", parameters: [
-                                string(name: 'AntTempWorkspace', value: "$TmpWokJobBuildRepos"),
-                                string(name: 'AntFileTar', value: "$FileTar"),
-                                string(name: 'AntProject_Name', value: "$Project_Name"),
-                                string(name: 'AntTypeEnvironment', value: "$TypeEnvironment"),
-                                string(name: 'AntPattern', value: "$Pattern")
-                                ]
+                        build job: "${Path_Job_Common}/${Job_Name_Jfrog_Upload}", parameters: [
+                            string(name: 'AntTempWorkspace', value: "$Job_Name_Build"),
+                            string(name: 'AntFileTar', value: "$FileTar"),
+                            string(name: 'AntProject_Name', value: "$Project_Name"),
+                            string(name: 'AntTypeEnvironment', value: "$TypeEnvironment"),
+                            string(name: 'AntPattern', value: "$Pattern")
+                            ]
                         }
                 }
                 post {
@@ -124,15 +129,14 @@ pipeline {
         stage('Job Jfrog Download') {
         steps {
                 script  {
-                        build job: "Job_Jfrog_Download", parameters: [
+                        build job: "${Path_Job_Common}/${Job_Name_Jfrog_Download}", parameters: [
                                 string(name: 'AntFileBuild', value: "$FileBuild"),
-                                string(name: 'AntTempWorkspace', value: "$TmpWokJobBuildRepos"),
+                                string(name: 'AntTempWorkspace', value: "$Job_Name_Build"),
                                 string(name: 'AntFileTar', value: "$FileTar"),
                                 string(name: 'AntProject_Name', value: "$Project_Name"),
                                 string(name: 'AntTypeEnvironment', value: "$TypeEnvironment"),
-                                string(name: 'AntSourceFiles', value: "$SourceFiles"),
+                                string(name: 'AntSourceFiles', value: "$Pattern"),
                                 string(name: 'AntRemoteDirectory', value: "$RemoteDirectory"),
-                                string(name: 'AntJob_Copy', value: "$Job_Copy"),
                                 string(name: 'AntTmpWorkJobCopyWorkspace', value: "${TmpWorkJobCopyWorkspace}"),
                                 string(name: 'AntTypeEnvironmentSSH', value: "$TypeEnvironmentSSH")
                                 ]
@@ -151,8 +155,8 @@ pipeline {
         }
         stage("Job Copy Artifacts SSH") {
                 steps {
-                        build job: "Job_SSH_Copy_${TypeEnvironmentSSH}", parameters: [
-                        string(name: 'AntSourceFiles', value: "${SourceFiles}"),
+                        build job: "${TmpJob_Copy}", parameters: [
+                        string(name: 'AntSourceFiles', value: "${Pattern}"),
                         string(name: 'AntRemoteDirectory', value: "${RemoteDirectory}")
                         ]
                 }
@@ -163,33 +167,62 @@ pipeline {
                                  }
                         failure {
                                         //Fallo Job revisar Ejecución en el Job Interno
+                                        sh 'rm -rf $TmpWorkJobCopyWorkspaceArt* && rm -rf $TmpWorkJobCopyWorkspace/Shell*'
                                         echo "Failed Sub Job Copy Artifacts SSH"
                         }
                 }
         }
         stage("Job SSH Deploy Sterling") {
                 steps {
-                        build job: "Job_SSH_Deploy" , wait: true
+                        build job: "${Job_Name_SSH_Deploy}" , wait: true
                 }
                 post {
-                        success {
-                                        //Completo Satisfactoriamente
-                                        echo "Sub Job SSH Deploy Sterling: Sucessfully"
-                                 }
-                        failure {
-                                        //Fallo Job revisar Ejecución en el Job Interno
-                                        sh 'rm -rf ${TmpWorkJobCopyWorkspace}/*'
-                                        echo "Failed Sub Job SSH Deploy Sterling"
+                success {
+                            //Completo Satisfactoriamente
+                            echo "Sub Job SSH Deploy Sterling: Sucessfully"
                         }
+                always {    
+                        script {
+                            echo "No action."
+                                try {
+                                    echo "Post action - ChangeNumber: ${ChangeNumber}"                                                
+                                    withEnv(['JIRA_SITE=Jira']){
+                                            def notification = load "${ExecTaskJira}"
+                                            notification.jiraNotification()
+                                    }
+                                } catch (err){
+                                        echo "Warning: The build info was not written in the project ${JiraProjectKey} on Jira Software due to earlier failure(s)."
+
+                                }
+                            }
+                        }
+                failure {
+                        //Fallo Job revisar Ejecución en el Job Interno
+                        sh 'rm -rf $TmpWorkJobCopyWorkspace/Art* && rm -rf $TmpWorkJobCopyWorkspace/Shell*'
+                        echo "Failed Sub Job SSH Deploy Sterling"
                 }
+            }
         }
         stage ('Removing files') {
                 steps {
                     script
-                        { 
+                        {
                             //Clean WORKSPACE Job
                             sh 'rm -rf $WORKSPACE/*'
-                            sh 'rm -rf ${TmpWorkJobCopyWorkspace}*'
+                            sh 'rm -rf $TmpWorkJobCopyWorkspace/Art* && rm -rf $TmpWorkJobCopyWorkspace/Shell*'
+                            sh 'rm -rf ${Path_Job_Name_Build}/workspace/${PgmSh}'
+                            sh 'rm -rf ${TmpWorkJobCopyWorkspace}/*.tar'
+
+                            //List Folder Jobs
+                            sh 'ls -ltr /var/lib/jenkins/jobs/DevSecOps/jobs/Folder_MFT_Common/jobs/Job_SSH_Copy_release/workspace'
+                            sh 'ls -ltr /var/lib/jenkins/jobs/DevSecOps/jobs/Folder_MFT_Common/jobs/Job_Build_Programs/workspace'
+                            sh 'ls -ltr /var/lib/jenkins/jobs/DevSecOps/jobs/Folder_MFT_Common/jobs/Job_Jfrog_Download/workspace'
+                            sh 'ls -ltr /var/lib/jenkins/jobs/DevSecOps/jobs/Folder_MFT_Common/jobs/Job_Build_Repos/workspace'
+                            sh 'ls -ltr /var/lib/jenkins/jobs/DevSecOps/jobs/Folder_MFT_Common/jobs/Job_Jfrog_Upload/workspace'
+                            sh 'ls -ltr /var/lib/jenkins/jobs/DevSecOps/jobs/Folder_MFT_Sterling_B2B/jobs/Job_SSH_Copy_release/workspace'
+                            sh 'ls -ltr /var/lib/jenkins/jobs/DevSecOps/jobs/Folder_MFT_Sterling_B2B/jobs/Job_Master_Repo_Sfg_Proc_00056/jobs/Job_SSH_Copy_release/workspace'
+                            sh 'ls -ltr /var/lib/jenkins/jobs/DevSecOps/jobs/Folder_MFT_Sterling_B2B/jobs/Job_Master_Repo_Sfg_Proc_00056/workspace'
+                            sh 'ls -ltr /var/lib/jenkins/jobs/DevSecOps/jobs/Folder_MFT_Sterling_B2B/jobs/Job_SSH_Rollback/workspace'
                     }                            
                 }
                 post {

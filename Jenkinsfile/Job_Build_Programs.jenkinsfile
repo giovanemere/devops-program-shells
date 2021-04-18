@@ -21,27 +21,36 @@ pipeline {
                 //Variables Jfrog
                 TargetBase = "${TargetGeneric}/${Project_Name}"
                 FileTarget = "${TargetBase}/${SubProjectNameShells}/${FileTar}"
+
+                //Clean Workspace
+                CleanWorkSpace = "rm -rf $WORKSPACE/* && rm -rf $WORKSPACE/.git"
         }
         stages {    
             stage ('Download Artifact') {
                 steps {
+                        //Show URL Bitbucket for User Jenkins
                         echo "Download Repository ${GIT_URL} Sucessfully!!"
                 }
                 
             }   
             stage ('Compress Artifact') {
                 steps {
+                        //Change Permissions WORKSPACE for execute Shells
                         sh 'chmod -R 755 $WORKSPACE/' 
+                        //Delete .git not necessary compress Artifacts
                         sh 'rm -rf $WORKSPACE/.git*'
+                        //Start Shell Compress Artifacts
                         sh '${PgmUtil} ${PgmZip} ${Tipo} $WORKSPACE $WORKSPACE ${FileTar} ${Accion} "${PgmPattern}"'
                 }
                 post {
                     success {
-                            echo "Compress Artifact ${FileTar}  Sucessfully"
+                                //Message Sucessfully Compress Artifact
+                                echo "Compress Artifact ${FileTar}  Sucessfully"
                             }
                     failure {
-                            echo "Failed Compress Artifact "
-                    }
+                                //Message Failed Compress Artifact
+                                echo "Failed Compress Artifact "
+                            }
                 }
             }
             stage('Upload Artifact Jfrog') {
@@ -63,29 +72,35 @@ pipeline {
                     }
                 post {
                     success {
-                            echo "Upload Artifact Sucessfully"
+                                //Message Sucessfully Upload Artifact
+                                echo "Upload Artifact Sucessfully"
                             }
                     failure {
-                            echo "Failed Upload Artifact "
-                    }
+                                //Message Failed Upload Artifact
+                                echo "Failed Upload Artifact "
+                            }
                 }
             }
             stage('Removing files') {
                 steps {
-                         sh 'rm -rf $WORKSPACE/*' 
+                         //Clean Workspace
+                         sh '$CleanWorkSpace'
                       }
                 post {
                     success {
-                            echo "Cleanup Enviroment Sucessfully"
+                                //Message Sucessfully Cleanup Enviroment 
+                                echo "Cleanup Enviroment Sucessfully"
                             }
                     failure {
-                            echo "Failed Cleanup Enviroment "
-                    }
+                                //Message Failed Cleanup Enviroment 
+                                echo "Failed Cleanup Enviroment "
+                            }
                 }   
             }
             stage('End Build Sterling') {
                 steps {
-                    echo 'Bye'
+                        //Message End Pipeline succesfully Deploy
+                        echo 'Bye'
                 }
             }
 

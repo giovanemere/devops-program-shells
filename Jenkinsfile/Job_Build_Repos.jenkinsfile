@@ -17,12 +17,17 @@ pipeline {
             //Variables de Shells
             PathFolderVars = "${PgmSh}/${FolderVars}"
             VarSh = "${PgmSh}/${ComplementShells}/${BashVars}"
+            PattStablePoint = "${Stable_Point}"
+
+            //Clean Workspace
+            CleanWorkSpace = "rm -rf $WORKSPACE/* && rm -rf $WORKSPACE/.git"
         }
         stages {
             stage('Checkout Artifacts'){
             steps {
                 script {
-                    checkout([$class: 'GitSCM', branches: [[name: "*/${BrachGit}"]], doGenerateSubmoduleConfigurations: false, 
+                            //Chckout Repository Especific Pipeline Master 
+                            checkout([$class: 'GitSCM', branches: [[name: "*/${BrachGit}"]], doGenerateSubmoduleConfigurations: false, 
                             extensions: [[$class: 'CloneOption', timeout: 30, noTags: false, shallow: true]]
                                         +[[$class: 'LocalBranch', localBranch: '']]
                                         +[[$class: 'CleanBeforeCheckout', deleteUntrackedNestedRepositories: false]],
@@ -32,85 +37,96 @@ pipeline {
                 }
                 post {
                     success {
+                                //Message Sucessfully Checkout Artifacts
                                 echo "Sucessfully Checkout Repositorio Bitbucket ${UriGit}"
                             }
                     failure {
+                                //Message Failed Checkout Artifacts
                                 echo "Failed Checkout Artifacts"
-								sh 'rm -rf $WORKSPACE/*'
+								//Clean Workspace
+                                sh 'rm -rf $WORKSPACE/*'
                     }
                 }
             }
             stage("Variables") {
             steps {
                 script {
-                    //Control URL Bitbucket
+                    //Extrac URL Bitbucket After @ 
                     env.ComUriGit1 = UriGit.substring(0,UriGit.indexOf('/')+2)
+                    //Extrac URL Bitbucket Befero 
                     env.ComUriGit2 = UriGit.substring(UriGit.indexOf('/')+2)
+                    //Concat @Complemet URL Bitbucket
                     env.TemUriGit2 = "@${ComUriGit2}"
                     //Correcion Permisos Folder Shell
                     sh 'chmod -R 700 $WORKSPACE/${PgmSh}'
-                    //Obtenemos numero del cambio
+
+                    //Obtain change Number Git Log
                     env.Change_number = sh(script: 'git log --oneline | grep -F -m 1 "feature/C"| sed "s/.*feature\\/\\(C[0-9]*\\).*/\\1/"', returnStdout: true).trim() 
-                    }                
+                    }
                 }
 				post {
                     success {
+                                //Message Sucessfully Obtain Change Number and URL Bitbucket
                                 echo "Sucessfully Obtain feature: ${Change_number} and URL Bitbucket ${env.TemUriGit2}"
                             }
                     failure {
+                                //Message Failed URL birbucket
                                 echo "Verified URL Bitbucket ${env.TemUriGit2} range : -1"
-								sh 'rm -rf $WORKSPACE/*'
+								//Clean Workspace
+                                //sh '$CleanWorkSpace'
                     }
                 }
             }
             stage ('Diff Artifact') {
 			steps {
+                
+                //Verificar Workspace
+                sh ('ls $WORKSPACE')
+
+                //Obatin Credentials User and passwor User conetionn Bitbucket
 				withCredentials([usernamePassword(credentialsId: 'UserBitbucketSterling', passwordVariable: 'PasswordGit', usernameVariable: 'UserBitSterling')]){
 				script {
+                        //Concat Complement URL Bitbucket and User
 						env.TemUriGit1 = "${ComUriGit1}${UserBitSterling}"
+                        //Show Variable Primary Path URL Bitbucket
+                        sh ('echo TemUriGit1 : ${TemUriGit1}')
+                        //Show Variable Point Stable
+                        sh ('echo PattStablePoint : ${PattStablePoint}')
+
+                        //Start Shell Diff Artifacts and Tag Brach and List Artifacts
+						sh ('$Tag_Branch_Shell $WORKSPACE "$Change_number" "${TemUriGit1}" "${TemUriGit2}" "${PasswordGit}" "${PattStablePoint}"')
 						
-						//Variables almacenadas en archivo fisico
-						def Pattern_change_number = "${env.Change_number}-*"
-						def Temp_Stable_Point = sh(script: "git tag -l ${Stable_Point} | sort --version-sort --reverse | head -1 | cut -d \"-\" -f2", returnStdout: true).trim()
-						env.VarTemp_Stable_Point = Temp_Stable_Point
-						def Last_tag = sh(script: "git tag -l ${Pattern_change_number} | sort --version-sort --field-separator=- --reverse | head -1 | cut -d \"-\" -f2", returnStdout: true).trim()
-
-						//Generamos siguiente tag
-						def Next_tag_version = Last_tag?Last_tag.toInteger()+1:1                        
-						def Next_tag_name = "${env.Change_number}"+'-'+"${Next_tag_version}"
-						env.Tag_name = Next_tag_name
-
-						//Obtener los artefactos
-						sh ("git checkout feature/${env.Change_number}")
-						//sh ("git checkout ${BrachGit}")
-						//sh ("git pull ${TemUriGit1}:${PasswordGit}${TemUriGit2}")
-
-						//Crear Carpeta Artefactos
-						sh ("[ -d $WORKSPACE/${env.Change_number} ] && echo 'folder exist: 1' || mkdir $WORKSPACE/${env.Change_number}")
-
-						//Listar los artefactos del ultimo commit
-						sh ("git diff --name-only \"feature/${env.Change_number}\"..${Temp_Stable_Point} | grep \".xml\" |xargs cp --parents -t $WORKSPACE/${env.Change_number}/ |xargs ls -ltr $WORKSPACE/${env.Change_number}/")
-						
-						//Tagear Repositorio
-						sh ('$Tag_Branch_Shell $WORKSPACE "$Change_number" "${TemUriGit1}" "${TemUriGit2}" "${PasswordGit}" "${Tag_name}" ')
 						}
 					}
 				}
 				post {
 					success {
-								echo "Sucessfully Diff Artifact}"
+								//Message Sucessfully Diff Artifact
+                                echo "Sucessfully Diff Artifact}"
 							}
 					failure {
-								echo "Failed Step Diff Artifact"
+								//Message Failed Diff Artifact
+                                echo "Failed Step Diff Artifact"
+                                //Clean Workspace
+                                sh '$CleanWorkSpace'
 					}
                 }
             }
             stage ('Compress Artifact') {
                 steps {
                     script {
-                        //Variables Programs
+                        //Show file Change_number folder Vars
+                        env.Tag_name = sh (script: 'cat $WORKSPACE/$PathFolderVars/$Change_number', returnStdout: true).trim() 
+                        //Concat ChangeNumer-TagName
                         env.FileBuild = "${Filename_Artifact}${Tag_name}" //Artifact_C1232154-2
+                        //Show variable FileBuild validate
+                        sh 'echo FileBuild: $FileBuild'
+
+                        //Filen Name Artifact upload y deploy Sterling
                         env.FileTar = "${env.FileBuild}.tar" //Artifact_C1232154-2.tar
+                        sh 'echo FileTar: $FileTar'
+
+                        //Varibale Programa Zip
                         env.PgmUtil = "./${Util}"
 
                         //Permisions Folder Programs
@@ -122,19 +138,26 @@ pipeline {
                         //Move Artifat WORKSPACE
                         sh ("mv $WORKSPACE/${env.Change_number}/${FileTar} $WORKSPACE/")
 
-                        //Storage File Variable
+                        //Carte Folder Variables Temporary
 						sh ("mkdir -p ${TmpWokJobMasterRepos}/${PathFolderVars}")
+
+                        //Start Shell Compress File Artifact
                         sh ("$WORKSPACE/${VarSh} ${TmpWokJobMasterRepos} ${PathFolderVars} ${VarName} ${env.FileTar}")
+
+                        //Show Existe File Compress
                         sh 'cat ${TmpWokJobMasterRepos}/$PathFolderVars/$VarName'
                     }
                 }
                 post {
                     success {
+                                //Message Sucessfully File: ${FileTar}
                                 echo "Compress Artifact Sucessfully File: ${FileTar}"
                             }
                     failure {
+                                //Message Failed Compress Artifact 
                                 echo "Failed Compress Artifact "
-								sh 'rm -rf $WORKSPACE/*'
+								//Clean Workspace
+                                sh '$CleanWorkSpace'
                     }
                 }
             }
@@ -145,7 +168,6 @@ pipeline {
                             //Clean WORKSPACE Job
                             sh 'rm -rf $WORKSPACE/ACCOUNT_PERMISSION/'
 							sh 'rm -rf $WORKSPACE/BUSINESS_PROCESS/'
-                            sh 'rm -rf $WORKSPACE/Shells/'
                             sh 'rm -rf $WORKSPACE/ADAPTERS/'
                             sh 'rm -rf $WORKSPACE/GROUPS/'
                             sh 'rm -rf $WORKSPACE/OBSCUR*'
@@ -159,15 +181,18 @@ pipeline {
                             sh 'rm -rf $WORKSPACE/ADAPTERS/'
                             sh 'rm -rf $WORKSPACE/ACCOUNTS_PERMISSION/'
                             sh 'rm -rf $WORKSPACE/*.md'
+                            sh 'rm -rf $WORKSPACE/*.git'
 							sh 'rm -rf $WORKSPACE/*.txt'
                             sh 'rm -rf $WORKSPACE/${Change_number}/'
                     }                            
                 }
                 post {
                     success {
-                            echo "Cleanup Enviroment  Sucessfully"
+                             //Message Cleanup Enviroment Sucessfully
+                            echo "Cleanup Enviroment Sucessfully"
                             }
                     failure {
+                            //Message Failed Cleanup Enviroment 
                             echo "Failed Cleanup Enviroment "
                     }
                 }

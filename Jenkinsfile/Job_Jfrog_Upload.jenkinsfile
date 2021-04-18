@@ -1,31 +1,35 @@
 pipeline {
     agent { label 'master' }
     environment {
-            //Variables Dinamicas
-                TempWorkspace = "${AntTempWorkspace}"
-                FileTar = "${AntFileTar}"
-                TypeEnvironment = "${AntTypeEnvironment}"
-                
-                //Variables Jfrog
-                TargetBase = "${TargetGeneric}/${Project_Name}/${TypeEnvironment}/"
+        //Variables Dinamicas
+        TempWorkspace = "${AntTempWorkspace}"
+        FileTar = "${AntFileTar}"
+        TypeEnvironment = "${AntTypeEnvironment}"
+        
+        //Variables Jfrog
+        TargetBase = "${TargetGeneric}/${Project_Name}/${TypeEnvironment}/"
 
-                //Extraer WorkSpace por Job
-                ComTempWork = "${WORKSPACE}"
+        //Extraer WorkSpace por Job
+        ComTempWork = "${WORKSPACE}"
+
+        //Clean Workspace
+        CleanWorkSpace = "rm -rf $WORKSPACE/* && rm -rf $WORKSPACE/.git"
     }
     stages {
         stage('Verify Artifact') {
             steps {
                 script{
-                    //extrae nombre JOb
-                        env.NombreJobWork = ComTempWork.substring(0,ComTempWork.lastIndexOf('/'))
-                        env.TempNombreJobWork = NombreJobWork.substring(0,NombreJobWork.lastIndexOf('/'))
-                        env.TempFileTar = "${TempNombreJobWork}/${TempWorkspace}/workspace/${FileTar}"
-                        sh 'echo "TempFileTar: ${TempFileTar}"'
+                    //Extract Name Job End Folder
+                    env.NombreJobWork = ComTempWork.substring(0,ComTempWork.lastIndexOf('/'))
+                    //Extract Name Job Penultimate Folder
+                    env.TempNombreJobWork = NombreJobWork.substring(0,NombreJobWork.lastIndexOf('/'))
+                    //Concat Folder WorkSapce Job
+                    env.TempFileTar = "${TempNombreJobWork}/${TempWorkspace}/workspace/${FileTar}"
                     
                     //Move Artifacts with spaces
                     String cmd = "Move Artifact Workspace"
+                    //Move Temporary for Workspace
                     file = sh (script: 'mv -v "${TempFileTar}" $WORKSPACE/',returnStdout: true).trim()
-                    
                     //Controller Filter Pattern Upload Jfrog Artifactory
                     env.FileWorkspace = "$WORKSPACE/${Pattern}"
                 }
@@ -50,27 +54,32 @@ pipeline {
             }
             post {
                 success {
-                        echo "Upload Artifact Sucessfully"
+                            //Message Sucessfully Upload Artifacts
+                            echo "Upload Artifact Sucessfully"
                         }
                 failure {
-                        echo "Failed Upload Artifact "
-                }
+                            //Message Failed Upload Artifacts 
+                            echo "Failed Upload Artifact "
+                        }
             }
         }
         stage ('Removing files') {
                 steps {
                     script
-                        { WORKSPACE
-                            sh 'rm -rf $WORKSPACE/*'
-                    }                            
+                        { 
+                            //Clean Workspace
+                            sh '$CleanWorkSpace'
+                        }                            
                 }
                 post {
                     success {
-                            echo "Cleanup Enviroment  Sucessfully"
+                                //Message Sucessfully Cleanup Enviroment 
+                                echo "Cleanup Enviroment  Sucessfully"
                             }
                     failure {
-                            echo "Failed Cleanup Enviroment "
-                    }
+                                //Message Failed Cleanup Enviroment 
+                                echo "Failed Cleanup Enviroment "
+                            }
                 }
             }
     

@@ -78,7 +78,8 @@ pipeline {
             }
             stage('Removing files') {
                 steps {
-                         sh 'rm -rf $WORKSPACE/*' 
+                         sh 'rm -rf $WORKSPACE/*'
+                         sh 'rm -rf $WORKSPACE/.git'
                       }
                 post {
                     success {

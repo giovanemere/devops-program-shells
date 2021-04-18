@@ -11,33 +11,50 @@ pipeline {
             Job_Copy = "${AntJob_Copy}"
             TypeEnvironmentSSH = "${AntTypeEnvironmentSSH}"
             FileTarShells = "${FilenameShells}${SourceFiles}"
-            TmpWorkJobCopyWorkspace = "${AntTmpWorkJobCopyWorkspace}"
 
             //
             TargetFileShells = "${TargetGeneric}/${Project_Name}/${SubProjectNameShells}/${FileTarShells}"
             TargetFileArtifact = "${TargetGeneric}/${Project_Name}/${TypeEnvironment}/${FileTar}"
             //TmpWorkJobCopyWorkspace = "$JENKINS_HOME/jobs/${TargetGeneric}/jobs/${Project_Name}/jobs/${Job_Copy}/workspace/"
+
+            //Extraer WorkSpace por Job
+            TempWorkspace = "${AntTmpWorkJobCopyWorkspace}"
+
+            //Clean Workspace
+            CleanWorkSpace = "rm -rf $WORKSPACE/* && rm -rf $WORKSPACE/.git"
+
     }
     stages {
         stage('Validate Folders') {
             steps {
                 script
                 {
-                    // Create Folder Shells
+                    //validate Exist Folder Shell
                     def Foldershell = sh script: '[ -d "$WORKSPACE/${PgmSh}" ]', returnStatus: true
+                    
+                    //If Folder Exist
                     if (Foldershell == 0) {
+                        //Exist Folder
                         echo "Folder $WORKSPACE/${PgmSh} Exist!"
                     } else {                                
+                        //Not Fodler for Create
                         sh 'mkdir $WORKSPACE/${PgmSh}'
+                        //Change Permission the execute shells
                         sh 'chmod -R 755 $WORKSPACE/${PgmSh}'
-                            }
+                    }
 
-                    // Create Folder Artifacts Sterling
+                    //validate Exist Folder Artifacts
                     def FolderArt = sh script: '[ -d "$WORKSPACE/${FileBuild}" ]', returnStatus: true
+
+                    //If Folder Exist
                     if (FolderArt == 0) {
+                        
+                        //Exist Folder
                         echo "Folder $WORKSPACE/${FileBuild} Exist!"
                     } else {                                
+                        //Not Fodler for Create
                         sh 'mkdir $WORKSPACE/${FileBuild}'
+                        //Change Permission the execute shells
                         sh 'chmod -R 755 $WORKSPACE/${FileBuild}'
                     }
                 }
@@ -59,12 +76,14 @@ pipeline {
             }
             post {
                 success {
-                    echo "Artifacts Download Succesfully"
-                    
-                }
+                            //Message Sucessfully Download Progrmas 
+                            echo "Artifacts Download Succesfully"
+                            
+                        }
                 failure {
-                        echo "Failed Download Artifact Progrmas"
-                    }
+                            //Message Failed Download Progrmas 
+                            echo "Failed Download Artifact Progrmas"
+                        }
                 }
             }
         stage('Download Change Jfrog') {
@@ -83,33 +102,35 @@ pipeline {
             }
             post {
                 success {
-                    echo "Artifacts Download Succesfully"
-                    
-                }
+                            //Message Sucessfully Download Artifacts 
+                            echo "Download Artifacts Succesfully"
+                        }
                 failure {
-                    echo "Failed Download Artifact Change"
-                }
+                            //Message Failed Download Artifacts 
+                            echo "Failed Download Artifact Change"
+                        }
             }
         }
         stage('Prepare Artifacts Shells'){
             environment
             {
+                //Obtain Files Folder Shells
                 FilenameTar = sh(script: 'find . -type f -name "${FileTarShells}" | sort --version-sort --field-separator=_ -r | head -1 | xargs -n 1 basename', returnStdout: true).trim() 
             }
             steps {
                 script
                     {
-                    //Create Folder Copy Artifacts
-                    sh 'mkdir -p ${TmpWorkJobCopyWorkspace}'
+                    //Create Folder Temporary
+                    sh 'mkdir -p ${TempWorkspace}'
                     
                     //Prepare copy Shells                    
-                    sh 'mv $WORKSPACE/${Project_Name}/${SubProjectNameShells}/${FilenameTar} ${TmpWorkJobCopyWorkspace}'
-                    
+                    sh 'mv $WORKSPACE/${Project_Name}/${SubProjectNameShells}/${FilenameTar} ${TempWorkspace}'
+
                     //Prepare copy Artifacts
-                    sh 'mv $WORKSPACE/${Project_Name}/${TypeEnvironment}/${FileTar} ${TmpWorkJobCopyWorkspace}'
+                    sh 'mv $WORKSPACE/${Project_Name}/${TypeEnvironment}/${FileTar} ${TempWorkspace}'
 
                     //List Folder Job_SSH_Copy
-                    sh 'ls -ltr ${TmpWorkJobCopyWorkspace}'
+                    sh 'ls -ltr ${TempWorkspace}'
                 }
             }
         }
@@ -117,17 +138,19 @@ pipeline {
                 steps {
                     script
                         {
-                            //Clean WORKSPACE Job
-                            sh 'rm -rf $WORKSPACE/*'
-                    }
+                            //Clean Workspace
+                            sh '$CleanWorkSpace'
+                        }
                 }
                 post {
                     success {
-                            echo "Cleanup Enviroment  Sucessfully"
+                                //Message Sucessfully Cleanup Enviroment 
+                                echo "Cleanup Enviroment  Sucessfully"
                             }
                     failure {
-                            echo "Failed Cleanup Enviroment "
-                    }
+                                //Message Failed Cleanup Enviroment 
+                                echo "Failed Cleanup Enviroment "
+                            }
                 }
             }
     

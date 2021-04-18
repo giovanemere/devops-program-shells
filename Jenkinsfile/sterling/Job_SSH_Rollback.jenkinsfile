@@ -1,0 +1,36 @@
+pipeline {
+agent { label 'master' }
+    stages {
+        stage('Rollback') {
+            steps {
+                    script{
+
+                        env.Partner_Id = "GIOVANNI_SFTP"
+                        env.Http_Request = "http://192.168.137.2:50075/B2BAPIs/svc/tradingpartners/"
+                        env.Community = "?_include=community"
+                        withCredentials([usernamePassword(credentialsId: 'userB2BPIs', passwordVariable: 'PWDB2B', usernameVariable: 'USERB2B')]) {
+                        
+                        //List Partner
+                        sh 'curl -X GET -k -u "$USERB2B:$PWDB2B" -H "Content-Type: application/json" -H "Accept:application/json" "$Http_Request$Partner_Id$Community"'
+                        
+                        //Crear Partner, se realiza por import de artefactos generados desde bitbucket
+
+                        //ELiminar PArtner
+                        sh 'curl -X DELETE -k -u "$USERB2B:$PWDB2B" -H "Content-Type: application/json" -H "Accept:application/json" "$Http_Request$Partner_Id"'
+                        
+                        }
+
+                    }
+            }
+            post {
+                success {
+                        echo "Cleanup Rollback Sucessfully"
+                        }
+                failure {
+                        echo "Failed Cleanup Enviroment Rollback"
+                }
+            }
+        }
+
+    }
+}

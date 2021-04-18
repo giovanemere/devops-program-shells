@@ -1,6 +1,7 @@
 pipeline {
   agent { label 'SterlingDev' }
         environment {              
+            //Obtain Envioremnts Pipeline Master o Parameters
             ExecOrqShell = "$WORKSPACE/${PgmSh}/${ComplementShells}/${AntOrqShell}"
             ExecPgmSh = "$WORKSPACE/${PgmSh}/${ComplementShells}/"
             PwdImport = "${AntPwdImport}"
@@ -26,136 +27,244 @@ pipeline {
             FileTarBackup = "$WORKSPACE/Backups/Backup_${FileBackup}"
 
             //Delete WorkSpace
-            DeleteWorSapce = "sh 'rm -rf $WORKSPACE/Arti* && rm -rf $WORKSPACE/Shel*'"
+            DeleteWorkspace = "rm -rf $WORKSPACE/Arti* && rm -rf $WORKSPACE/Shel*"
 
         }
         stages {
 			stage('Unzip Programs'){
                     steps {
-                        script 
-                            {
+                        script {
+                             //Create folder Backups
 							sh ('mkdir -p $WORKSPACE/Backups')
+                            //Extrac Name Folder Shells
                             env.FilenameTar = sh (script: 'ls $WORKSPACE/${FilenameShells}*', returnStdout: true).trim()
-							
+                            //Validate Folder Shells Exist
 							def FolderArtifac = sh script: '[ -d "$WORKSPACE/${PgmSh}" ]', returnStatus: true
-                            if (FolderArtifac == 0) {
+                            
+                            //If Folder Exist
+                            if (FolderArtifac == 0) 
+                                {
+                                    //If Folder Create Decompress Zip Shells
                                     sh '/bin/tar -xvf $WORKSPACE/${PgmSh}/${FilenameTar}'
                                 }
                                 else {
-                                    sh 'mkdir -p $WORKSPACE/${PgmSh}/'
-                                    sh '/bin/tar -xvf ${FilenameTar} -C $WORKSPACE/${PgmSh}/'
-                                }
-								
-                        }
+                                        //If Folder No Create the Create Folder
+                                        sh 'mkdir -p $WORKSPACE/${PgmSh}/'
+                                        //Decompress Zip Shells
+                                        sh '/bin/tar -xvf ${FilenameTar} -C $WORKSPACE/${PgmSh}/'
+                                     }
+                             }
                     }
 					post {
-						success {
-							echo "Unzip Sucessfully	${FilenameTar}"
-							}
+						success {   
+                                    //Message End UnZip Sucessfully Artifacts
+                                    sh 'echo "Unzip Sucessfully	${FilenameTar}"'
+							    }
 						failure {
-							//${DeleteWorSapce}
-						}
-					}
+                                    //Delete Clean Artifacts and Shells
+							        sh '${DeleteWorkspace}'
+                                }
+                        }
                 }
 			stage('Unzip Artifacts Sterling'){
                     steps {
                         script {
+                            //List Files Artifact_
                             env.FileTar = sh (script: 'ls $WORKSPACE/${Filename_Artifact}*', returnStdout: true).trim()
+                            //Extract Name Folder Shells
                             env.FileBuild = FileTar.substring(0,FileTar.indexOf('.'))
-                            env.ExecFileBuild = "${FileBuild}"
-                            
+                            //Extract Name Build Number
+                            env.ExecFileBuild = "${FileBuild}"                            
+                            //Validate Folder Shells Exist
                             def FolderArtifac = sh script: '[ -d "${FileBuild}" ]', returnStatus: true
-                            if (FolderArtifac == 0) {
-                                    sh '/bin/tar -xvf ${FileTar} -C ${FileBuild}/'
-                                }
-                                else {
-                                    sh 'mkdir -p ${ExecFileBuild}/'
-                                    sh 'mkdir -p ${ExecFileBuild}/Backup/'
-                                    sh 'mkdir -p ${ExecFileBuild}/Errors/'
-                                    sh 'mkdir -p ${ExecFileBuild}/Report/'
-                                    sh '/bin/tar -xvf ${FileTar} -C ${FileBuild}/'
-                                }
+                                
+                                //If Folder Exist
+                                if (FolderArtifac == 0) 
+                                    {
+                                        //If Folder Create Decompress Zip Artifacts
+                                        sh '/bin/tar -xvf ${FileTar} -C ${FileBuild}/'
+                                    }
+                                    else {
+                                        //If Folder No Create the Create Folder
+                                        sh 'mkdir -p ${ExecFileBuild}/'
+                                        sh 'mkdir -p ${ExecFileBuild}/Backup/'
+                                        sh 'mkdir -p ${ExecFileBuild}/Errors/'
+                                        sh 'mkdir -p ${ExecFileBuild}/Report/'
+                                        //Decompress Zip Artifacts
+                                        sh '/bin/tar -xvf ${FileTar} -C ${FileBuild}/'
+                                    }
+                            
+                            //Variable Compress Backup Folders
+                            env.BackupArtifacts = "/bin/tar -cvf ${FileTarBackup} ${ExecFileBuild}/Backup/ ${ExecFileBuild}/Errors/ ${ExecFileBuild}/Report/"
                         }
                     }
 					post {
 						success {
-							echo "Unzip Sucessfully	${FileTar}"
+                                    //Message End UnZip Sucessfully Artifacts
+                                    sh 'echo "Unzip Sucessfully	${FileTar}"'
 							}
 						failure {
-							//${DeleteWorSapce}
-						}
-					}
+                                    //Delete Clean Artifacts and Shells
+                                    sh '${DeleteWorkspace}'
+                                }
+                        }
                 }
 			stage('Chmod Artifacts') {
                 steps {
-                    sh 'chmod -R 700 $WORKSPACE/'                  
-                    }
+                           //Assign Permmisions Succes Execute Shell 
+                            sh 'chmod -R 700 $WORKSPACE/'                  
+                        }
                 }
 			stage('Deploy Artifacts Comunes') {
                 parallel 
 				{
                     stage('Deploy ADAPTERS') { //1
                         steps {
+                            //Start Shell Deploy Artifact for parameters
                             sh '${ExecOrqShell} "${ExecPgmSh}" "${ExecFileBuild}" "${Adapters}" "${PwdImport}"'
                         }
                         post {
-                            success {
-                                echo "Los artefactos ${Adapters} desplegados de forma exitosa"
+                           success {
+                                        //Message Deploy Sucessfully Deploy
+                                        echo "Los artefactos ${Adapters} desplegados de forma exitosa"
+                                    }
+                                failure {
+									script 
+										{
+											//Validate Folder Errors
+                                            env.ArtifactExist = sh (script: 'grep "already exists" ${ExecFileBuild}/Errors/${Adapters}/*', returnStdout: true).trim()
+                                            //If Not Exist Folder
+											if (ArtifactExist == 0) {
+                                                //Create Message Errores
+												sh ('cat -b ${ExecFileBuild}/Errors/${Adapters}/*')
+											}
+											else {
+												//Message No Exist Folder Not Necessary Zip Artifacts
+												sh 'echo "Adapters Exist, Not is necesary import!!"'
+                                                //Delete Clean Artifacts and Shells
+												sh '${DeleteWorkspace}'
+											}
+										}
                                 }
-                            failure {
-                               sh 'cat -b ${ExecFileBuild}/Errors/${Adapters}/*'
-                            }
                         }
                     }
                     stage('Deploy OBSCUREDATA') { //2
                         steps {
+                            //Start Shell Deploy Artifact for parameters
                             sh '${ExecOrqShell} "${ExecPgmSh}" "${ExecFileBuild}" "${Obscuredata}" "${PwdImport}"'
                         }
                         post {
                             success {
-                                echo "Los artefactos ${Obscuredata} desplegados de forma exitosa"
+                                        //Message Deploy Sucessfully Deploy
+                                        echo "Los artefactos ${Obscuredata} desplegados de forma exitosa"
+                                    }
+                                failure {
+									script 
+										{
+											//Validate Folder Errors
+                                            env.ArtifactExist = sh (script: 'grep "already exists" ${ExecFileBuild}/Errors/${Obscuredata}/*', returnStdout: true).trim()
+                                            //If Not Exist Folder
+											if (ArtifactExist == 0) {
+                                                //Create Message Errores
+												sh ('cat -b ${ExecFileBuild}/Errors/${Obscuredata}/*')
+											}
+											else {
+												//Message No Exist Folder Not Necessary Zip Artifacts
+												sh 'echo "Obscuredata Exist, Not is necesary import!!"'
+                                                //Delete Clean Artifacts and Shells
+												sh '${DeleteWorkspace}'
+											}
+										}
                                 }
-                            failure {
-                                sh 'cat -b ${ExecFileBuild}/Errors/${Obscuredata}/*'
-                            }
                         }
                     }
                     stage('Deploy XSLT') { //3
                         steps {
+                            //Start Shell Deploy Artifact for parameters
                             sh '${ExecOrqShell} "${ExecPgmSh}" "${ExecFileBuild}" "${Xslt}" "${PwdImport}"'
                         }
                         post {
                             success {
-                                echo "Los artefactos ${Xslt} desplegados de forma exitosa"
+                                        //Message Deploy Sucessfully Deploy
+                                        echo "Los artefactos ${Xslt} desplegados de forma exitosa"
+                                    }
+                                failure {
+									script 
+										{
+											//Validate Folder Errors
+                                            env.ArtifactExist = sh (script: 'grep "already exists" ${ExecFileBuild}/Errors/${Xslt}/*', returnStdout: true).trim()
+                                            //If Not Exist Folder
+											if (ArtifactExist == 0) {
+                                                //Create Message Errores
+												sh ('cat -b ${ExecFileBuild}/Errors/${Xslt}/*')
+											}
+											else {
+												//Message No Exist Folder Not Necessary Zip Artifacts
+												sh 'echo "Xslt Exist, Not is necesary import!!"'
+                                                //Delete Clean Artifacts and Shells
+												sh '${DeleteWorkspace}'
+											}
+										}
                                 }
-                            failure {
-                                sh 'cat -b ${ExecFileBuild}/Errors/${Xslt}/*'
-                            }
                         }
                     }
                     stage('Deploy CERTIFICATES') { //4
                         steps {
+                            //Start Shell Deploy Artifact for parameters
                             sh '${ExecOrqShell} "${ExecPgmSh}" "${ExecFileBuild}" "${Certificates}" "${PwdImport}"'
                         }
                         post {
                             success {
-                                echo "Los artefactos ${Certificates} desplegados de forma exitosa"
+                                        //Message Deploy Sucessfully Deploy
+                                        echo "Los artefactos ${Certificates} desplegados de forma exitosa"
+                                    }
+                                failure {
+									script 
+										{
+											//Validate Folder Errors
+                                            env.ArtifactExist = sh (script: 'grep "already exists" ${ExecFileBuild}/Errors/${Certificates}/*', returnStdout: true).trim()
+                                            //If Not Exist Folder
+											if (ArtifactExist == 0) {
+                                                //Create Message Errores
+												sh ('cat -b ${ExecFileBuild}/Errors/${Certificates}/*')
+											}
+											else {
+												//Message No Exist Folder Not Necessary Zip Artifacts
+												sh 'echo "Certificates Exist, Not is necesary import!!"'
+                                                //Delete Clean Artifacts and Shells
+												sh '${DeleteWorkspace}'
+											}
+										}
                                 }
-                            failure {
-                                sh 'cat -b ${ExecFileBuild}/Errors/${Certificates}/*'
-                            }
                         }
                     }
                     stage('Deploy BUSINESS PROCESS') { //5
                         steps {
+                            //Start Shell Deploy Artifact for parameters
                             sh '${ExecOrqShell} "${ExecPgmSh}" "${ExecFileBuild}" "${Business_Process}" "${PwdImport}"'
                         }
                         post {
                             success {
-                                echo "Los artefactos ${Business_Process} desplegados de forma exitosa"
-                                }
-                            failure {
-                                sh 'cat -b ${ExecFileBuild}/Errors/${Business_Process}/*'
+                                        //Message Deploy Sucessfully Deploy
+                                        echo "Los artefactos ${Business_Process} desplegados de forma exitosa"
+                                    }
+                                failure {
+									script 
+										{
+											//Validate Folder Errors
+                                            env.ArtifactExist = sh (script: 'grep "already exists" ${ExecFileBuild}/Errors/${Business_Process}/*', returnStdout: true).trim()
+                                            //If Not Exist Folder
+											if (ArtifactExist == 0) {
+                                                //Create Message Errores
+												sh ('cat -b ${ExecFileBuild}/Errors/${Business_Process}/*')
+											}
+											else {
+												//Message No Exist Folder Not Necessary Zip Artifacts
+												sh 'echo "Business_Process Exist, Not is necesary import!!"'
+                                                //Delete Clean Artifacts and Shells
+												sh '${DeleteWorkspace}'
+											}
+										}
                                 }
                             }
                         }
@@ -163,14 +272,31 @@ pipeline {
 			}
 			stage('Deploy TEMPLATES') { //6
 				steps {
+                            //Start Shell Deploy Artifact for parameters
                             sh '${ExecOrqShell} "${ExecPgmSh}" "${ExecFileBuild}" "${Templates}" "${PwdImport}"'
                         }
                     post {
-                        success {
-                            echo "Los artefactos ${Templates} desplegados de forma exitosa"
-                            }
+                         success {
+                                    //Message Deploy Sucessfully Deploy
+                                    echo "Los artefactos ${Templates} desplegados de forma exitosa"
+                                }
                         failure {
-                            sh 'cat -b ${ExecFileBuild}/Errors/${Templates}/*'
+                            script 
+                                {
+                                    //Validate Folder Errors
+                                    env.ArtifactExist = sh (script: 'grep "already exists" ${ExecFileBuild}/Errors/${Templates}/*', returnStdout: true).trim()
+                                    //If Not Exist Folder
+                                    if (ArtifactExist == 0) {
+                                        //Create Message Errores
+                                        sh ('cat -b ${ExecFileBuild}/Errors/${Templates}/*')
+                                    }
+                                    else {
+                                        //Message No Exist Folder Not Necessary Zip Artifacts
+                                        sh 'echo "Templates Exist, Not is necesary import!!"'
+                                        //Delete Clean Artifacts and Shells
+                                        sh '${DeleteWorkspace}'
+                                    }
+                                }
                         }
                     }
                 }
@@ -179,49 +305,89 @@ pipeline {
 					{
                         stage('Deploy SCHEDULES') {
                             steps {
+                                    //Start Shell Deploy Artifact for parameters
                                     sh '${ExecOrqShell} "${ExecPgmSh}" "${ExecFileBuild}" "${Schedules}" "${PwdImport}"'
                                 }
                             post {
-                                success {
-                                    echo "Los artefactos ${Schedules} desplegados de forma exitosa"
-                                    }
+                               success {
+                                            //Message Deploy Sucessfully Deploy
+                                            echo "Los artefactos ${Schedules} desplegados de forma exitosa"
+                                        }
                                 failure {
-                                    sh 'cat -b ${ExecFileBuild}/Errors/${Schedules}/*'
+                                    script 
+                                        {
+                                            //Validate Folder Errors
+                                            env.ArtifactExist = sh (script: 'grep "already exists" ${ExecFileBuild}/Errors/${Schedules}/*', returnStdout: true).trim()
+                                            //If Not Exist Folder
+                                            if (ArtifactExist == 0) {
+                                                //Create Message Errores
+                                                sh ('cat -b ${ExecFileBuild}/Errors/${Schedules}/*')
+                                            }
+                                            else {
+                                                //Message No Exist Folder Not Necessary Zip Artifacts
+                                                sh 'echo "Schedules Exist, Not is necesary import!!"'
+                                                //Delete Clean Artifacts and Shells
+                                                sh '${DeleteWorkspace}'
+                                            }
+                                        }
                                 }
                             }
                         }
                         stage('Deploy SSH PROFILES') { //8
                             steps {
+                                    //Start Shell Deploy Artifact for parameters
                                     sh '${ExecOrqShell} "${ExecPgmSh}" "${ExecFileBuild}" "${Ssh_Profiles}" "${PwdImport}"'
                                 }
                             post {
                                 success {
-                                    echo "Los artefactos ${Ssh_Profiles} desplegados de forma exitosa"
-                                    }
+                                            //Message Deploy Sucessfully Deploy
+                                            echo "Los artefactos ${Ssh_Profiles} desplegados de forma exitosa"
+                                        }
                                 failure {
-                                    sh 'cat -b ${ExecFileBuild}/Errors/${Ssh_Profiles}/*'
+                                    script 
+                                        {
+                                            //Validate Folder Errors
+                                            env.ArtifactExist = sh (script: 'grep "already exists" ${ExecFileBuild}/Errors/${Ssh_Profiles}/*', returnStdout: true).trim()
+                                            //If Not Exist Folder
+                                            if (ArtifactExist == 0) {
+                                                //Create Message Errores
+                                                sh ('cat -b ${ExecFileBuild}/Errors/${Ssh_Profiles}/*')
+                                            }
+                                            else {
+                                                //Message No Exist Folder Not Necessary Zip Artifacts
+                                                sh 'echo "Ssh_Profiles Exist, Not is necesary import!!"'
+                                                //Delete Clean Artifacts and Shells
+                                                sh '${DeleteWorkspace}'
+                                            }
+                                        }
                                 }
                             }
                         }
                         stage('Deploy PARTNERS') { //9
                             steps {
+                                    //Start Shell Deploy Artifact for parameters
                                     sh '${ExecOrqShell} "${ExecPgmSh}" "${ExecFileBuild}" "${Partners}" "${PwdImport}"'
                                 }
                             post {
 								success {
-                                    echo "Los artefactos ${Partners} desplegados de forma exitosa"
-                                    }
+                                            //Message Deploy Sucessfully Deploy
+                                            echo "Los artefactos ${Partners} desplegados de forma exitosa"
+                                        }
                                 failure {
 									script 
 										{
-											env.ArtifactExist = sh (script: 'grep "already exists" ${ExecFileBuild}/Errors/${Partners}/*', returnStdout: true).trim()
-											if (ArtifactExist == 0) {
+											//Validate Folder Errors
+                                            env.ArtifactExist = sh (script: 'grep "already exists" ${ExecFileBuild}/Errors/${Partners}/*', returnStdout: true).trim()
+                                            //If Not Exist Folder
+                                            if (ArtifactExist == 0) {
+                                                //Create Message Errores
 												sh ('cat -b ${ExecFileBuild}/Errors/${Partners}/*')
 											}
 											else {
-												//sh ('cat -b ${ExecFileBuild}/Errors/${Partners}/*')
-												echo "Channels Exist, Not is necesary import!!"
-												// ${DeleteWorSapce}
+												//Message No Exist Folder Not Necessary Zip Artifacts
+												sh 'echo "Partners Exist, Not is necesary import!!"'
+                                                //Delete Clean Artifacts and Shells
+												sh '${DeleteWorkspace}'
 											}
 										}
                                 }
@@ -234,49 +400,89 @@ pipeline {
 					{
                         stage('Deploy GROUPS') { //10
                             steps {
+                                    //Start Shell Deploy Artifact for parameters
                                     sh '${ExecOrqShell} "${ExecPgmSh}" "${ExecFileBuild}" "${Groups}" "${PwdImport}"'
                                 }
                             post {
-                                success {
-                                    echo "Los artefactos ${Groups} desplegados de forma exitosa"
-                                    }
+                               success {
+                                            //Message Deploy Sucessfully Deploy
+                                            echo "Los artefactos ${Groups} desplegados de forma exitosa"
+                                        }
                                 failure {
-                                    sh 'cat -b ${ExecFileBuild}/Errors/${Groups}/*'
+									script 
+										{
+											//Validate Folder Errors
+                                            env.ArtifactExist = sh (script: 'grep "already exists" ${ExecFileBuild}/Errors/${Groups}/*', returnStdout: true).trim()
+                                            //If Not Exist Folder
+                                            if (ArtifactExist == 0) {
+                                                //Create Message Errores
+												sh ('cat -b ${ExecFileBuild}/Errors/${Groups}/*')
+											}
+											else {
+												//Message No Exist Folder Not Necessary Zip Artifacts
+												sh 'echo "Groups Exist, Not is necesary import!!"'
+                                                //Delete Clean Artifacts and Shells
+												sh '${DeleteWorkspace}'
+											}
+										}
                                 }
                             }
                         }
                         stage('Deploy ACCOUNTS PERMISSION') { //11
                             steps {
+                                    //Start Shell Deploy Artifact for parameters
                                     sh '${ExecOrqShell} "${ExecPgmSh}" "${ExecFileBuild}" "${Accounts_Permission}" "${PwdImport}"'
                                 }
                             post {
-                                success {
-                                    echo "Los artefactos ${Accounts_Permission} desplegados de forma exitosa"
-                                    }
+                               success {
+                                            //Message Deploy Sucessfully Deploy
+                                            echo "Los artefactos ${Accounts_Permission} desplegados de forma exitosa"
+                                        }
                                 failure {
-                                    sh 'cat -b ${ExecFileBuild}/Errors/${Accounts_Permission}/*'
+									script 
+										{
+											//Validate Folder Errors
+                                            env.ArtifactExist = sh (script: 'grep "already exists" ${ExecFileBuild}/Errors/${Accounts_Permission}/*', returnStdout: true).trim()
+                                            //If Not Exist Folder
+                                            if (ArtifactExist == 0) {
+                                                //Create Message Errores
+												sh ('cat -b ${ExecFileBuild}/Errors/${Accounts_Permission}/*')
+											}
+											else {
+												//Message No Exist Folder Not Necessary Zip Artifacts
+												sh 'echo "Accounts_Permission Exist, Not is necesary import!!"'
+                                                //Delete Clean Artifacts and Shells
+												sh '${DeleteWorkspace}'
+											}
+										}
                                 }
                             }
                         }
                         stage('Deploy CODE LISTS') { //12
                             steps {
+                                    //Start Shell Deploy Artifact for parameters
                                     sh '${ExecOrqShell} "${ExecPgmSh}" "${ExecFileBuild}" "${Code_Lists}" "${PwdImport}"'
                                 }
 							post {                                
 								success {
-                                    echo "Los artefactos ${Code_Lists} desplegados de forma exitosa"
-                                    }
+                                            //Message Deploy Sucessfully Deploy
+                                            sh 'echo "Los artefactos ${Code_Lists} desplegados de forma exitosa"'
+                                        }
                                 failure {
 									script 
 										{
-											env.ArtifactExist = sh (script: 'grep "already exists" ${ExecFileBuild}/Errors/${Code_Lists}/*', returnStdout: true).trim()
-											if (ArtifactExist == 0) {
+											//Validate Folder Errors
+                                            env.ArtifactExist = sh (script: 'grep "already exists" ${ExecFileBuild}/Errors/${Code_Lists}/*', returnStdout: true).trim()
+                                            //If Not Exist Folder
+                                            if (ArtifactExist == 0) {
+                                                //Create Message Errores
 												sh ('cat -b ${ExecFileBuild}/Errors/${Code_Lists}/*')
 											}
 											else {
-												//sh ('cat -b ${ExecFileBuild}/Errors/${Code_Lists}/*')
-												echo "Channels Exist, Not is necesary import!!"
-												// ${DeleteWorSapce}
+												//Message No Exist Folder Not Necessary Zip Artifacts
+												sh 'echo "Code_Lists Exist, Not is necesary import!!"'
+                                                //Delete Clean Artifacts and Shells
+												sh '${DeleteWorkspace}'
 											}
 										}
                                 }
@@ -286,24 +492,30 @@ pipeline {
                             steps {
 									script 
 										{
+                                            //Start Shell Deploy Artifact for parameters
 											sh '${ExecOrqShell} "${ExecPgmSh}" "${ExecFileBuild}" "${Routing_Channels}" "${PwdImport}"'
 										}
 							}
                             post {
 								success {
-                                    echo "Los artefactos ${Routing_Channels} desplegados de forma exitosa"
-                                    }
+                                            //Message Deploy Sucessfully Deploy
+                                            echo "Los artefactos ${Routing_Channels} desplegados de forma exitosa"
+                                        }
                                 failure {
 									script 
 										{
-											env.ArtifactExist = sh (script: 'grep "already exists" ${ExecFileBuild}/Errors/${Routing_Channels}/*', returnStdout: true).trim()
-											if (ArtifactExist == 0) {
+											//Validate Folder Errors
+                                            env.ArtifactExist = sh (script: 'grep "already exists" ${ExecFileBuild}/Errors/${Routing_Channels}/*', returnStdout: true).trim()
+                                            //If Not Exist Folder
+                                            if (ArtifactExist == 0) {
+                                                //Create Message Errores
 												sh ('cat -b ${ExecFileBuild}/Errors/${Routing_Channels}/*')
 											}
 											else {
-												//sh ('cat -b ${ExecFileBuild}/Errors/${Routing_Channels}/*')
-												echo "Channels Exist, Not is necesary import!!"
-												// ${DeleteWorSapce}
+												//Message No Exist Folder Not Necessary Zip Artifacts
+												sh 'echo "Routing_Channels Exist, Not is necesary import!!"'
+                                                //Delete Clean Artifacts and Shells
+												sh '${DeleteWorkspace}'
 											}
 										}
                                 }
@@ -315,38 +527,56 @@ pipeline {
 				steps {
                         script
                             {
-                                sh ('cd ${ExecFileBuild}')
-                                sh ("/bin/tar -cvf  ${FileTarBackup} ${ExecFileBuild}/Backup/ ${ExecFileBuild}/Errors/ ${ExecFileBuild}/Report/")
+                                //Message Start Zip Artifacts
+                                sh 'echo "Startup Zip Artifacts"'
+                            }
                         }
-                    }
                     post {
+                        always  {
+                                script {
+                                        //Change Directory Buil Number
+                                        sh ('cd ${ExecFileBuild}')
+                                        //Start Backup Artifacts deployer
+                                        sh ('${BackupArtifacts}')
+                                        //Start Backup Artifact
+                                        sh ('ls -ltr ${FileTarBackup}')
+                                    }
+                                }
                         success {
-                                echo "Zip Backup Artifacts Sucessfully"
+                                    //Message End Zip Sucessfully Artifacts
+                                    sh 'echo "End Zip Artifacts Sucessfully"'
                                 }
                         failure {
-                                echo "Failed Zip Backup Artifacts "
-								// ${DeleteWorSapce}
+                                    //Message End Failed Zip Artifacts
+                                    sh 'echo "Failed Zip Backup Artifacts "'
+                                    //Delete Clean Artifacts and Shells
+                                    sh '${DeleteWorkspace}'
+                                }
                         }
-                    }
-                }
+                 }
 			stage ('Cleanup Environment') {
                     steps {
-                        script
-                            {
-                                // ${DeleteWorSapce}'
+                    script  {
+                                //Message Start Cleanup Enviromen
+                                sh 'echo "Startup Cleanup Enviroment Artifacts"'
+                            }
                         }
-                    }
                     post {
                         success {
-                                echo "Cleanup Enviroment  Sucessfully"
+                                //Delete Clean Artifacts and Shells
+                                sh '${DeleteWorkspace}'
+                                //Message End Zip Sucessfully Artifacts
+                                sh 'echo "End Sucessfully Cleanup Enviroment"'
                                 }
                         failure {
-                                echo "Failed Cleanup Enviroment "
+                                //Message End Failed Zip Artifacts
+                                sh 'echo "End Failed Cleanup Enviroment Artifacts"'
                         }
                     }
                 }
 			stage('End Deploy Sterling') {
                 steps {
+                    //Message End Pipeline succesfully Deploy
                     echo 'Bye'
                     }
                 }		

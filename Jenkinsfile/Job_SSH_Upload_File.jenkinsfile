@@ -46,6 +46,7 @@ agent { label 'master' }
                         { 
                             //Clean WORKSPACE Temporal
                             sh 'rm -rf $WORKSPACE/*'
+                            sh 'rm -rf $WORKSPACE/.git'
                             
                             //Clean WORKSPACE Job
                             sh 'rm -rf "$TempWorkspace/Filename_Artifact_Manual.tar"'

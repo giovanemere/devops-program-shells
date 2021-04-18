@@ -1,0 +1,30 @@
+{
+    "@type": "MessageCard",
+    "@context": "http://schema.org/extensions",
+    "themeColor": "0076D7",
+    "summary": "Release Team Build Execution Notification",
+    "sections": [{
+        "activityTitle": "![TestImage](https://47a92947.ngrok.io/Content/Images/default.png)Release Team Build Execution Notification",
+        "activitySubtitle": "Sterling B2B Automate",
+        "activityImage": "https://teamsnodesample.azurewebsites.net/static/img/image5.png",
+        "facts": [{
+            "name": "Pipeline Name",
+            "value": "${JOB_NAME}"
+        }, {
+            "name": "Build Number",
+            "value": "${BUILD_NUMBER}"
+        }, {
+            "name": "Status",
+            "value": "${PIPELINE_STATUS}"
+        }],
+        "markdown": true
+    }],
+    "potentialAction": [ {
+        "@type": "OpenUri",
+        "name": "Build Log",
+        "targets": [
+            { "os": "default", "uri": "${Log_Build_Url}" }
+        ]
+    }
+    }]
+}
