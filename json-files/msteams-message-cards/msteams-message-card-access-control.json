@@ -14,6 +14,9 @@
             "name": "Build Number",
             "value": "${BUILD_NUMBER}"
         }, {
+            "name": "Change Number",
+            "value": "${FileBuild}"
+        }, {
             "name": "Status",
             "value": "${PIPELINE_STATUS}"
         }],
